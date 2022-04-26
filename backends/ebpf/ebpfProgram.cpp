@@ -157,7 +157,7 @@ void EBPFProgram::emitTypes(CodeBuilder* builder) {
         if (d->is<IR::Type>() && !d->is<IR::IContainer>() &&
             !d->is<IR::Type_Extern>() && !d->is<IR::Type_Parser>() &&
             !d->is<IR::Type_Control>() && !d->is<IR::Type_Typedef>() &&
-            !d->is<IR::Type_Error>()) {
+            !d->is<IR::Type_SerEnum>()) {
             auto type = EBPFTypeFactory::instance->create(d->to<IR::Type>());
             if (type == nullptr)
                 continue;
@@ -172,7 +172,7 @@ class ErrorCodesVisitor : public Inspector {
     CodeBuilder* builder;
  public:
     explicit ErrorCodesVisitor(CodeBuilder* builder) : builder(builder) {}
-    bool preorder(const IR::Type_Error* errors) override {
+    bool preorder(const IR::Type_SerEnum* errors) override {
         for (auto m : *errors->getDeclarations()) {
             builder->emitIndent();
             builder->appendFormat("%s,\n", m->getName().name.c_str());

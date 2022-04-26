@@ -47,6 +47,7 @@ limitations under the License.
 #include "midend/tableHit.h"
 #include "midend/validateProperties.h"
 #include "lower.h"
+#include "midend/convertErrors.h"
 
 namespace EBPF {
 
@@ -62,6 +63,17 @@ class EnumOn32Bits : public P4::ChooseEnumRepresentation {
     }
     unsigned enumSize(unsigned) const override
     { return 32; }
+};
+
+class ErrorWidth : public P4::ChooseErrorRepresentation {
+    unsigned width;
+    bool convert(const IR::Type_Error *) const override {
+        return true;
+    }
+
+    unsigned errorSize(unsigned) const override { return width;}
+ public:
+    explicit ErrorWidth(unsigned width): width(width) {}
 };
 
 const IR::ToplevelBlock* MidEnd::run(EbpfOptions& options,
@@ -103,6 +115,7 @@ const IR::ToplevelBlock* MidEnd::run(EbpfOptions& options,
             new P4::RemoveLeftSlices(&refMap, &typeMap),
             new EBPF::Lower(&refMap, &typeMap),
             new P4::ParsersUnroll(true, &refMap, &typeMap),
+            new P4::ConvertErrors(&refMap, &typeMap, new ErrorWidth(8)),
             evaluator,
             new P4::MidEndLast()
         });

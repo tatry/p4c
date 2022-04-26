@@ -94,7 +94,7 @@ void StateTranslationVisitor::compileVerify(const IR::MethodCallExpression * exp
     auto errorExpr = expression->arguments->at(1)->expression;
     auto errorMember = errorExpr->to<IR::Member>();
     auto type = typeMap->getType(errorExpr, true);
-    if (!type->is<IR::Type_Error>() || errorMember == nullptr) {
+    if (!type->is<IR::Type_SerEnum>() || errorMember == nullptr) {
         ::error(ErrorType::ERR_UNEXPECTED, "%1%: not accessing a member error type", errorExpr);
         return;
     }

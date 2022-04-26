@@ -147,7 +147,7 @@ void InspectPsaProgram::addTypesAndInstances(const IR::Type_StructLike* type, bo
                 LOG5("Field is a Type_Boolean");
                 pinfo->scalars_width += 1;
                 pinfo->scalarMetadataFields.emplace(f, newName);
-            } else if (ft->is<IR::Type_Error>()) {
+            } else if (ft->is<IR::Type_Error>() || ft->is<IR::Type_SerEnum>()) {
                 LOG5("Field is a Type_Error");
                 pinfo->scalars_width += 32;
                 pinfo->scalarMetadataFields.emplace(f, newName);

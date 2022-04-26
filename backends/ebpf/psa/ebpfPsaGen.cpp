@@ -33,16 +33,11 @@ class PSAErrorCodesGen : public Inspector {
  public:
     explicit PSAErrorCodesGen(CodeBuilder* builder) : builder(builder) {}
 
-    bool preorder(const IR::Type_Error* errors) override {
+    bool preorder(const IR::Type_SerEnum* errors) override {
         int id = -1;
         for (auto decl : errors->members) {
-            ++id;
-            if (decl->srcInfo.isValid()) {
-                auto sourceFile = decl->srcInfo.getSourceFile();
-                // all the error codes are located in core.p4 file, they are defined in psa.h
-                if (sourceFile.endsWith("p4include/core.p4"))
-                    continue;
-            }
+            if (++id < 7)
+                continue;
 
             builder->emitIndent();
             builder->appendFormat("static const ParserError_t %s = %d", decl->name.name, id);
@@ -417,7 +412,7 @@ const PSAEbpfGenerator * ConvertToEbpfPSA::build(const IR::ToplevelBlock *tlb) {
         if (d->is<IR::Type>() && !d->is<IR::IContainer>() &&
             !d->is<IR::Type_Extern>() && !d->is<IR::Type_Parser>() &&
             !d->is<IR::Type_Control>() && !d->is<IR::Type_Typedef>() &&
-            !d->is<IR::Type_Error>()) {
+            !d->is<IR::Type_SerEnum>()) {
             if (d->srcInfo.isValid()) {
                 auto sourceFile = d->srcInfo.getSourceFile();
                 if (sourceFile.endsWith("/psa.p4")) {

@@ -46,7 +46,7 @@ EBPFType* EBPFTypeFactory::create(const IR::Type* type) {
         if (et == nullptr)
             return nullptr;
         result = new EBPFStackType(ts, et);
-    } else if (type->is<IR::Type_Error>()) {
+    } else if (type->is<IR::Type_SerEnum>()) {
         // Implement error type as scalar of width 8 bits
         result = new EBPFScalarType(new IR::Type_Bits(8, false));
     } else {
