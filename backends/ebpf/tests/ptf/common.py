@@ -373,13 +373,13 @@ class P4EbpfTest(BaseTest):
     def digest_get(self, name):
         cmd = "psabpf-ctl digest get pipe {} {}".format(TEST_PIPELINE_ID, name)
         _, stdout, _ = self.exec_ns_cmd(cmd, "Digest get failed")
-        return json.loads(stdout)['Digest'][name]['digests']
+        return json.loads(stdout)[name]['digests']
 
     def counter_get(self, name, key=None):
         key_str = self._table_create_str_from_key(key=key)
         cmd = "psabpf-ctl counter get pipe {} {} {}".format(TEST_PIPELINE_ID, name, key_str)
         _, stdout, _ = self.exec_ns_cmd(cmd, "Counter get failed")
-        return json.loads(stdout)['Counter'][name]
+        return json.loads(stdout)[name]
 
     def _do_counter_verify(self, bytes, packets, entry_value, counter_type):
         """ Verify counter value and type. Use `counter_verify` or `table_verify` instead.
