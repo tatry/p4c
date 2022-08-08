@@ -428,7 +428,7 @@ class ParserValueSetPSATest(P4EbpfTest):
         testutils.send_packet(self, PORT0, pkt)
         testutils.verify_no_other_packets(self)
 
-        self.update_map("IngressParserImpl_pvs", '1 0 0 10', '0 0 0 0')
+        self.value_set_insert(name="IngressParserImpl_pvs", value=["10.0.0.1"])
 
         testutils.send_packet(self, PORT0, pkt)
         testutils.verify_packet_any_port(self, pkt, ALL_PORTS)
