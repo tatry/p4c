@@ -29,6 +29,8 @@ import logging
 import json
 import shlex
 import subprocess
+import time
+
 import ptf
 import ptf.testutils as testutils
 
@@ -366,12 +368,12 @@ class P4EbpfTest(BaseTest):
             for d in data:
                 cmd = cmd + " {}".format(d)
         _, stdout, _ = self.exec_ns_cmd(cmd, "ActionSelector add-member failed")
-        return int(stdout)
+        return json.loads(stdout)[selector]["added_member_ref"]
 
     def action_selector_create_empty_group(self, selector):
         cmd = "psabpf-ctl action-selector create-group pipe {} {}".format(TEST_PIPELINE_ID, selector)
         _, stdout, _ = self.exec_ns_cmd(cmd, "ActionSelector create-group failed")
-        return int(stdout)
+        return json.loads(stdout)[selector]["added_group_ref"]
 
     def action_selector_add_member_to_group(self, selector, group_ref, member_ref):
         cmd = "psabpf-ctl action-selector add-to-group pipe {} {} {} to {}"\
@@ -379,6 +381,10 @@ class P4EbpfTest(BaseTest):
         self.exec_ns_cmd(cmd, "ActionSelector add-to-group failed")
 
     def digest_get(self, name):
+        # Possible race conditions: many test cases may send packet and just
+        # after that try to read digest message. In rare case packet can be
+        # not yet processed so digest is not yet available.
+        time.sleep(0.1)
         cmd = "psabpf-ctl digest get-all pipe {} {}".format(TEST_PIPELINE_ID, name)
         _, stdout, _ = self.exec_ns_cmd(cmd, "Digest get failed")
         return json.loads(stdout)[name]['digests']
