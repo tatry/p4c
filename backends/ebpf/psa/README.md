@@ -13,7 +13,7 @@ This directory implements PSA (Portable Switch Architecture) for the eBPF backen
 
 P4 packet processing is translated into a set of eBPF programs attached to the TC hook. The eBPF programs implement packet processing defined
 in a P4 program written according to the PSA model. The TC hook is used as a main engine, because it enables a full implementation of the PSA specification.
-We also plan to contribute the XDP-based version of the PSA implementation that does not implement the full specification, but provides better performance.
+The XDP-based version of the PSA implementation does not implement the full specification, but provides better performance.
 
 The TC-based design of PSA for eBPF is depicted in Figure below.
 
@@ -33,8 +33,19 @@ The TC-based design of PSA for eBPF is depicted in Figure below.
   It is also responsible for packet replication via clone sessions or multicast groups and sending packet to CPU.
 - `tc-egress` - The PSA Egress pipeline (composed of Parser, Control block and Deparser) is attached to the TC Egress hook. As there is no
   XDP hook in the Egress path, the use of TC is mandatory for the egress processing. **Note!** If the PSA Egress pipeline is not used (i.e. it is left empty by a developer),
-  the PSA-eBPF compiler will not generate the TC Egress program. This brings a noticeable performance gain, if the egress pipeline is not used. 
-  
+  the PSA-eBPF compiler will not generate the TC Egress program. This brings a noticeable performance gain, if the egress pipeline is not used.
+
+The XDP-based design of PSA for eBPF is depicted in Figure below.
+
+![XDP-based PSA-eBPF design](psa-ebpf-xdp-design.png)
+
+`xdp-helper` does not exist in this design, instead the PSA Ingress pipeline is attached to XDP hook. Because XDP is unable
+to copy packets, the PRE (Packet Replication Engine) is moved to the TC layer. When packet replication is required, it is
+passed to TC layer with additional metadata for the TC-layer program (these metadata can be passed using `cpumap` or `head`
+method, `meta` is not supported). From TC there is no return to XDP layer, so PSA Egress Pipeline must be implemented also
+in TC, the same as in TC-based implementation. The XDP layer has no hook for egress packet processing, a map of type `BPF_MAP_TYPE_DEVMAP`
+is used as a workaround for this purpose. It allows to simulate such hook, still executing in ingress hook. 
+
 ## Packet paths
 
 ### NTK (Normal Packet To Kernel) 
@@ -583,9 +594,6 @@ with some NICs. So far, we have verified the correct behavior with Intel 82599ES
 
 All the below features are already implemented and will be contributed to the P4 compiler in subsequent pull requests.
 
-- **XDP support.** The current version of P4-eBPF compiler leverages the BPF TC hook for P4-programmable packet processing. 
-The TC subsystem enables implementation of the full PSA specification, contrary to XDP, but offers lower throughput. We're going to 
-contribute the XDP-based version of P4-eBPF that is not fully spec-compliant, but provides higher throughput.
 - **Extended ValueSet support.** We plan to extend implementation to support other match kinds and multiple fields in the `select()` expression.
 
 ## Long-term goals
