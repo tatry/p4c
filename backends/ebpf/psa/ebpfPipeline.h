@@ -69,6 +69,7 @@ class EBPFPipeline : public EBPFProgram {
         pktInstanceVar = compilerGlobalMetadata + cstring("->instance");
         priorityVar = cstring("skb->priority");
         oneKey = EBPFModel::reserved("one");
+        progTarget = new KernelSamplesTarget(options.emitTraceMessages);
     }
 
     /* Check if pipeline does any processing.
@@ -207,6 +208,54 @@ class TCEgressPipeline : public EBPFEgressPipeline {
 
     void emitTrafficManager(CodeBuilder *builder) override;
 };
+
+class XDPIngressPipeline : public EBPFIngressPipeline {
+ public:
+    XDPIngressPipeline(cstring name, const EbpfOptions& options, P4::ReferenceMap* refMap,
+                       P4::TypeMap* typeMap) :
+            EBPFIngressPipeline(name, options, refMap, typeMap) {
+        sectionName = "xdp_ingress/" + name;
+        ifindexVar = cstring("skb->ingress_ifindex");
+        packetPathVar = cstring(compilerGlobalMetadata + "->packet_path");
+        progTarget = new XdpTarget(options.emitTraceMessages);
+    }
+
+    void emitGlobalMetadataInitializer(CodeBuilder *builder) override;
+    void emitTrafficManager(CodeBuilder *builder) override;
+};
+
+class XDPEgressPipeline : public EBPFEgressPipeline {
+ public:
+    XDPEgressPipeline(cstring name, const EbpfOptions& options, P4::ReferenceMap* refMap,
+                      P4::TypeMap* typeMap):
+            EBPFEgressPipeline(name, options, refMap, typeMap) {
+        sectionName = "xdp_devmap/" + name;
+        ifindexVar = cstring("skb->egress_ifindex");
+        // we do not support packet path, instance & priority in the XDP egress.
+        packetPathVar = cstring("0");
+        pktInstanceVar = cstring("0");
+        priorityVar = cstring("0");
+        progTarget = new XdpTarget(options.emitTraceMessages);
+    }
+
+    void emitGlobalMetadataInitializer(CodeBuilder *builder) override;
+    void emitTrafficManager(CodeBuilder *builder) override;
+};
+
+class TCTrafficManagerForXDP : public TCIngressPipeline {
+ public:
+    TCTrafficManagerForXDP(cstring name, const EbpfOptions& options, P4::ReferenceMap* refMap,
+                           P4::TypeMap* typeMap) :
+            TCIngressPipeline(name, options, refMap, typeMap) {
+    }
+
+    void emit(CodeBuilder *builder) override;
+
+ private:
+    void emitReadXDP2TCMetadataFromHead(CodeBuilder *builder);
+    void emitReadXDP2TCMetadataFromCPUMAP(CodeBuilder *builder);
+};
+
 }  // namespace EBPF
 
 #endif /* BACKENDS_EBPF_PSA_EBPFPIPELINE_H_ */

@@ -50,6 +50,9 @@ EbpfOptions::EbpfOptions() {
                    return true;
                 }, "Set number of maximum possible masks for a ternary key"
                   " in a single table");
+        registerOption("--xdp", nullptr,
+                [this](const char*) { generateToXDP = true; return true; },
+                "[psa only] Compile and generate the P4 prog for XDP hook");
         registerOption("--xdp2tc", "MODE",
                 [this](const char* arg) {
                    if (!strcmp(arg, "meta")) {
