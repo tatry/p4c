@@ -82,10 +82,10 @@ function install_ptf_ebpf_test_deps() (
                            $LINUX_TOOLS"
   apt-get install -y --no-install-recommends ${P4C_PTF_PACKAGES}
 
-  git clone --recursive https://github.com/P4-Research/psabpf.git /tmp/psabpf
+  git clone --recursive --branch tatry/linter https://github.com/P4-Research/psabpf.git /tmp/psabpf
   cd /tmp/psabpf
   # FIXME: psabpf is under heavy development, later use git tags when it will be ready to use
-  git reset --hard edacd0d
+  git reset --hard 78ed384
   ./build_libbpf.sh
   mkdir build
   cd build
