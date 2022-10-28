@@ -212,7 +212,6 @@ void DeparserHdrEmitTranslator::emitField(CodeBuilder* builder, cstring field,
         swap = "htonll";
         emitSize = 64;
     }
-    unsigned bytes = ROUNDUP(widthToEmit, 8);
     unsigned shift =
         widthToEmit < 8 ? (emitSize - alignment - widthToEmit) : (emitSize - widthToEmit);
 
@@ -243,18 +242,22 @@ void DeparserHdrEmitTranslator::emitField(CodeBuilder* builder, cstring field,
         builder->emitIndent();
         if (alignment == 0 && bitsToWrite == 8) {  // write whole byte
             builder->appendFormat(
-                "write_byte(%s, BYTES(%s) + %d, (%s))", program->packetStartVar.c_str(),
-                program->offsetVar.c_str(),
-                widthToEmit > 64 ? bytes - i - 1 : i,  // reversed order for wider fields
-                program->byteVar.c_str());
+                    "write_byte(%s, BYTES(%s) + %d, (%s))",
+                    program->packetStartVar.c_str(),
+                    program->offsetVar.c_str(),
+                    i,  // do not reverse byte order
+                    program->byteVar.c_str());
         } else {  // write partial
             shift = (8 - alignment - bitsToWrite);
             builder->appendFormat(
-                "write_partial(%s + BYTES(%s) + %d, %d, %d, (%s >> %d))",
-                program->packetStartVar.c_str(), program->offsetVar.c_str(),
-                widthToEmit > 64 ? bytes - i - 1 : i,  // reversed order for wider fields
-                bitsToWrite, shift, program->byteVar.c_str(),
-                widthToEmit > freeBits ? alignment == 0 ? shift : alignment : 0);
+                    "write_partial(%s + BYTES(%s) + %d, %d, %d, (%s >> %d))",
+                    program->packetStartVar.c_str(),
+                    program->offsetVar.c_str(),
+                    i,  // do not reverse byte order
+                    bitsToWrite,
+                    shift,
+                    program->byteVar.c_str(),
+                    widthToEmit > freeBits ? alignment == 0 ? shift : alignment : 0);
         }
         builder->endOfStatement(true);
         left -= bitsToWrite;
@@ -265,16 +268,21 @@ void DeparserHdrEmitTranslator::emitField(CodeBuilder* builder, cstring field,
             builder->emitIndent();
             if (bitsToWrite == 8) {
                 builder->appendFormat(
-                    "write_byte(%s, BYTES(%s) + %d + 1, (%s << %d))",
-                    program->packetStartVar.c_str(), program->offsetVar.c_str(),
-                    widthToEmit > 64 ? bytes - i - 1 : i,  // reversed order for wider fields
-                    program->byteVar.c_str(), 8 - alignment % 8);
+                        "write_byte(%s, BYTES(%s) + %d + 1, (%s << %d))",
+                        program->packetStartVar.c_str(),
+                        program->offsetVar.c_str(),
+                        i,  // do not reverse byte order
+                        program->byteVar.c_str(),
+                        8 - alignment % 8);
             } else {
                 builder->appendFormat(
-                    "write_partial(%s + BYTES(%s) + %d + 1, %d, %d, (%s))",
-                    program->packetStartVar.c_str(), program->offsetVar.c_str(),
-                    widthToEmit > 64 ? bytes - i - 1 : i,  // reversed order for wider fields
-                    bitsToWrite, 8 + alignment - bitsToWrite, program->byteVar.c_str());
+                        "write_partial(%s + BYTES(%s) + %d + 1, %d, %d, (%s))",
+                        program->packetStartVar.c_str(),
+                        program->offsetVar.c_str(),
+                        i,  // do not reverse byte order
+                        bitsToWrite,
+                        8 + alignment - bitsToWrite,
+                        program->byteVar.c_str());
             }
             builder->endOfStatement(true);
             left -= bitsToWrite;

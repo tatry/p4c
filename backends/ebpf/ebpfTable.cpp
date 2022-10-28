@@ -477,10 +477,6 @@ void EBPFTable::emitKey(CodeBuilder* builder, cstring keyName) {
                 swap = "bpf_htonl";
             } else if (width <= 64) {
                 swap = "bpf_htonll";
-            } else {
-                // TODO: handle width > 64 bits
-                ::error(ErrorType::ERR_UNSUPPORTED,
-                        "%1%: fields wider than 64 bits are not supported yet", fieldName);
             }
         }
 
@@ -492,24 +488,9 @@ void EBPFTable::emitKey(CodeBuilder* builder, cstring keyName) {
 
         builder->emitIndent();
         if (memcpy) {
-            if (isLPMKeyBigEndian) {
-                // FIXME: will not work on big endian machines because byte swap
-                //  is done always. Also test this solution because fields larger
-                //  than 64 bit are not deparsed correctly
-                const unsigned bytesToCopy = scalar->bytesRequired();
-                for (unsigned byte = 0; byte < bytesToCopy; ++byte) {
-                    builder->appendFormat("%s.%s[%u] = (", keyName.c_str(), fieldName.c_str(),
-                                          byte);
-                    codeGen->visit(c->expression);
-                    builder->appendFormat(")[%u]", bytesToCopy - byte - 1);
-                    builder->endOfStatement(true);
-                    builder->emitIndent();
-                }
-            } else {
-                builder->appendFormat("memcpy(&%s.%s, &", keyName.c_str(), fieldName.c_str());
-                codeGen->visit(c->expression);
-                builder->appendFormat(", %d)", scalar->bytesRequired());
-            }
+            builder->appendFormat("__builtin_memcpy(&(%s.%s[0]), &(", keyName.c_str(), fieldName.c_str());
+            codeGen->visit(c->expression);
+            builder->appendFormat("[0]), %d)", scalar->bytesRequired());
         } else {
             builder->appendFormat("%s.%s = ", keyName.c_str(), fieldName.c_str());
             if (isLPMKeyBigEndian) builder->appendFormat("%s(", swap.c_str());
