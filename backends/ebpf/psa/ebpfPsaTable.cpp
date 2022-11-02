@@ -138,15 +138,44 @@ class EBPFTablePSAImplementationPropertyVisitor : public EBPFTablePsaPropertyVis
 };
 
 class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
- public:
-    EBPFTablePSAInitializerCodeGen(P4::ReferenceMap* refMap, P4::TypeMap* typeMap)
-        : CodeGenInspector(refMap, typeMap) {}
+ protected:
+    unsigned currentKeyEntryIndex = 0;
+    const IR::Entry *currentEntry = nullptr;
+    const EBPFTablePSA *table = nullptr;
 
-    bool preorder(const IR::Constant* expression) override {
-        auto type = typeMap->getType(expression);
+    cstring generateHexStr(const big_int &value, unsigned width, const IR::Expression *expr) {
+        unsigned nibbles = 2 * ROUNDUP(width, 8);  // the required length of hex string, must be even number
+        cstring str = value.str(0, std::ios_base::hex);
+        if (str.size() < nibbles)
+            str = std::string(nibbles - str.size(), '0') + str;
+        BUG_CHECK(str.size() == nibbles, "%1%: value size does not match %2% bits", expr, width);
+        return str;
+    }
+
+    unsigned getEbpfTypeWidth(const IR::Expression *expr) {
+        auto type = typeMap->getType(expr);
         auto ebpfType = EBPFTypeFactory::instance->create(type);
         auto scalar = ebpfType->to<EBPFScalarType>();
-        unsigned width = scalar ? scalar->implementationWidthInBits() : 0;
+        return scalar ? scalar->implementationWidthInBits() : 0;
+    }
+
+ public:
+    EBPFTablePSAInitializerCodeGen(P4::ReferenceMap* refMap, P4::TypeMap* typeMap, const EBPFTablePSA *table)
+        : CodeGenInspector(refMap, typeMap), table(table) {}
+
+    void generateKeyInitializer(const IR::Entry *entry) {
+        currentEntry = entry;
+        // entry->keys is a IR::ListExpression, it lacks information about table key, so we have to visit table->keyGenerator
+        table->keyGenerator->apply(*this);
+    }
+
+    void generateValueInitializer(const IR::Entry *entry) {
+        currentEntry = entry;
+        entry->action->apply(*this);
+    }
+
+    bool preorder(const IR::Constant* expression) override {
+        unsigned width = getEbpfTypeWidth(expression);
 
         if (EBPFScalarType::generatesScalar(width))
             return CodeGenInspector::preorder(expression);
@@ -161,10 +190,7 @@ class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
     }
 
     bool preorder(const IR::Mask* expression) override {
-        auto type = typeMap->getType(expression->left);
-        auto ebpfType = EBPFTypeFactory::instance->create(type);
-        auto scalar = ebpfType->to<EBPFScalarType>();
-        unsigned width = scalar ? scalar->implementationWidthInBits() : 0;
+        unsigned width = getEbpfTypeWidth(expression->left);
 
         if (EBPFScalarType::generatesScalar(width)) {
             visit(expression->left);
@@ -184,14 +210,69 @@ class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
         return false;
     }
 
- protected:
-    cstring generateHexStr(const big_int &value, unsigned width, const IR::Expression *expr) {
-        unsigned nibbles = 2 * ROUNDUP(width, 8);  // the required length of hex string (must be even number)
-        cstring str = value.str(0, std::ios_base::hex);
-        if (str.size() < nibbles)
-            str = std::string(nibbles - str.size(), '0') + str;
-        BUG_CHECK(str.size() == nibbles, "%1%: value size does not match width %2%", expr, width);
-        return str;
+    bool preorder(const IR::Key *) override {
+        BUG_CHECK(table->keyGenerator->keyElements.size() == currentEntry->keys->size(),
+                  "Entry key size does not match table key size");
+        currentKeyEntryIndex = 0;
+        builder->blockStart();
+        return true;
+    }
+    bool preorder(const IR::KeyElement *key) override {
+        cstring fieldName = ::get(table->keyFieldNames, key);
+        cstring matchType = key->matchType->path->name.name;
+        auto expr = currentEntry->keys->components[currentKeyEntryIndex];
+        unsigned width = getEbpfTypeWidth(key->expression);
+        bool genPrefixLen = matchType == P4::P4CoreLibrary::instance.lpmMatch.name;
+        bool doSwapBytes = genPrefixLen && EBPFScalarType::generatesScalar(width);
+
+        builder->emitIndent();
+        builder->appendFormat(".%s = ", fieldName.c_str());
+        if (doSwapBytes) {
+            if (width <= 8) {
+                ;  // single byte, nothing to swap
+            } else if (width <= 16) {
+                builder->append("bpf_htons");
+            } else if (width <= 32) {
+                builder->append("bpf_htonl");
+            } else if (width <= 64) {
+                builder->append("bpf_htonll");
+            }
+            builder->append("(");
+        }
+        visit(expr);
+        if (doSwapBytes)
+            builder->append(")");
+        builder->appendLine(",");
+
+        if (genPrefixLen) {
+            // TODO: fix prefix calculation
+            unsigned prefixLen = width;
+            if (auto km = expr->to<IR::Mask>()) {
+                auto trailing_zeros = [width](const big_int &n) -> unsigned {
+                    return (n == 0) ? width : boost::multiprecision::lsb(n);
+                };
+                auto count_ones = [](const big_int &n) -> unsigned {
+                    return bitcount(n);
+                };
+                auto mask = km->right->to<IR::Constant>()->value;
+                auto len = trailing_zeros(mask);
+                if (len + count_ones(mask) != width) {  // any remaining 0s in the prefix?
+                    ::error(ErrorType::ERR_INVALID, "%1% invalid mask for LPM key", key);
+                    return false;
+                }
+                prefixLen = width - len;
+            }
+
+            builder->emitIndent();
+            builder->appendFormat(".%s = %u", table->prefixFieldName.c_str(), prefixLen);
+            builder->appendLine(",");
+        }
+
+        ++currentKeyEntryIndex;
+        return false;
+    }
+    void postorder(const IR::Key *) override {
+        builder->blockEnd(false);
     }
 };
 
@@ -418,121 +499,41 @@ void EBPFTablePSA::emitInitializer(CodeBuilder* builder) {
 }
 
 void EBPFTablePSA::emitConstEntriesInitializer(CodeBuilder* builder) {
+    const IR::EntriesList* entries = table->container->getEntries();
+    if (entries == nullptr)
+        return;
+
     if (isTernaryTable()) {
         emitTernaryConstEntriesInitializer(builder);
         return;
     }
 
-    EBPFTablePSAInitializerCodeGen cg(program->refMap, program->typeMap);
+    EBPFTablePSAInitializerCodeGen cg(program->refMap, program->typeMap, this);
     cg.setBuilder(builder);
 
-    const IR::EntriesList* entries = table->container->getEntries();
-    if (entries != nullptr) {
-        for (auto entry : entries->entries) {
-            auto keyName = program->refMap->newName("key");
-            auto valueName = program->refMap->newName("value");
+    for (auto entry: entries->entries) {
+        auto keyName = program->refMap->newName("key");
+        auto valueName = program->refMap->newName("value");
 
-            // construct key and initialize fields larger than 64 bits
-            builder->emitIndent();
-            builder->appendFormat("struct %s %s = ", this->keyTypeName.c_str(), keyName.c_str());
-            builder->blockStart();
-            for (size_t index = 0; index < keyGenerator->keyElements.size(); index++) {
-                auto key = keyGenerator->keyElements[index];
-                auto ebpfType = ::get(keyTypes, key);
-                if (!ebpfType->is<EBPFScalarType>())
-                    continue;
-                unsigned width = ebpfType->to<EBPFScalarType>()->implementationWidthInBits();
-                if (EBPFScalarType::generatesScalar(width))
-                    continue;
+        // construct key
+        builder->emitIndent();
+        builder->appendFormat("struct %s %s = ", this->keyTypeName.c_str(), keyName.c_str());
+        cg.generateKeyInitializer(entry);
+        builder->endOfStatement(true);
 
-                cstring fieldName = get(keyFieldNames, key);
-                auto expr = entry->keys->components[index];
+        // construct value
+        auto *mce = entry->action->to<IR::MethodCallExpression>();
+        emitTableValue(builder, mce, valueName.c_str());
 
-                builder->emitIndent();
-                builder->appendFormat(".%s = ", fieldName.c_str());
-                expr->apply(cg);
-                builder->appendLine(",");
-            }
-            builder->blockEnd(false);
-            builder->endOfStatement(true);
+        // emit update
+        auto ret = program->refMap->newName("ret");
+        builder->emitIndent();
+        builder->appendFormat("int %s = ", ret.c_str());
+        builder->target->emitTableUpdate(builder, instanceName,
+                                         keyName.c_str(), valueName.c_str());
+        builder->newline();
 
-            // set up values
-            for (size_t index = 0; index < keyGenerator->keyElements.size(); index++) {
-                auto keyElement = keyGenerator->keyElements[index];
-                cstring fieldName = get(keyFieldNames, keyElement);
-                CHECK_NULL(fieldName);
-                auto ebpfType = ::get(keyTypes, keyElement);
-                auto scalar = ebpfType->to<EBPFScalarType>();
-                unsigned width = scalar ? scalar->implementationWidthInBits() : 0;
-                auto mtdecl = program->refMap->getDeclaration(keyElement->matchType->path, true);
-                auto matchType = mtdecl->getNode()->to<IR::Declaration_ID>();
-                auto expr = entry->keys->components[index];
-
-                // generate prefix length
-                if (matchType->name.name == P4::P4CoreLibrary::instance.lpmMatch.name) {
-                    builder->emitIndent();
-                    builder->appendFormat("%s.%s = ", keyName.c_str(), prefixFieldName.c_str());
-                    // TODO: fix prefix calculation
-                    unsigned prefixLen = width;
-                    if (auto km = expr->to<IR::Mask>()) {
-                        auto trailing_zeros = [width](const big_int& n) -> unsigned {
-                            return (n == 0) ? width : boost::multiprecision::lsb(n); };
-                        auto count_ones = [](const big_int& n) -> unsigned {
-                            return bitcount(n); };
-                        auto mask = km->right->to<IR::Constant>()->value;
-                        auto len = trailing_zeros(mask);
-                        if (len + count_ones(mask) != width) {  // any remaining 0s in the prefix?
-                            ::error(ErrorType::ERR_INVALID, "%1% invalid mask for LPM key",
-                                    keyElement);
-                            return;
-                        }
-                        prefixLen = width - len;
-                    }
-                    builder->append(prefixLen);
-                    builder->endOfStatement(true);
-                }
-
-                if (!EBPFScalarType::generatesScalar(width))
-                    continue;
-
-                builder->emitIndent();
-                builder->appendFormat("%s.%s = ", keyName.c_str(), fieldName.c_str());
-                if (matchType->name.name == P4::P4CoreLibrary::instance.lpmMatch.name) {
-                    cstring swap;
-                    if (ebpfType->is<EBPFScalarType>()) {
-                        if (width <= 8) {
-                            swap = "";  // single byte, nothing to swap
-                        } else if (width <= 16) {
-                            swap = "bpf_htons";
-                        } else if (width <= 32) {
-                            swap = "bpf_htonl";
-                        } else if (width <= 64) {
-                            swap = "bpf_htonll";
-                        }
-                    }
-                    builder->appendFormat("%s(", swap);
-                    expr->apply(cg);
-                    builder->append(")");
-                } else if (matchType->name.name == P4::P4CoreLibrary::instance.exactMatch.name) {
-                    expr->apply(cg);
-                }
-                builder->endOfStatement(true);
-            }
-
-            // construct value
-            auto* mce = entry->action->to<IR::MethodCallExpression>();
-            emitTableValue(builder, mce, valueName.c_str());
-
-            // emit update
-            auto ret = program->refMap->newName("ret");
-            builder->emitIndent();
-            builder->appendFormat("int %s = ", ret.c_str());
-            builder->target->emitTableUpdate(builder, instanceName, keyName.c_str(),
-                                             valueName.c_str());
-            builder->newline();
-
-            emitMapUpdateTraceMsg(builder, instanceName, ret);
-        }
+        emitMapUpdateTraceMsg(builder, instanceName, ret);
     }
 }
 
@@ -596,7 +597,7 @@ void EBPFTablePSA::emitTableValue(CodeBuilder* builder, const IR::MethodCallExpr
 
     cstring actionName = EBPFObject::externalName(action);
 
-    EBPFTablePSAInitializerCodeGen cg(program->refMap, program->typeMap);
+    EBPFTablePSAInitializerCodeGen cg(program->refMap, program->typeMap, this);
     cg.setBuilder(builder);
 
     builder->emitIndent();
@@ -727,7 +728,7 @@ void EBPFTablePSA::emitKeysAndValues(CodeBuilder* builder,
                                      std::vector<const IR::Entry*>& samePrefixEntries,
                                      std::vector<cstring>& keyNames,
                                      std::vector<cstring>& valueNames) {
-    EBPFTablePSAInitializerCodeGen cg(program->refMap, program->typeMap);
+    EBPFTablePSAInitializerCodeGen cg(program->refMap, program->typeMap, this);
     cg.setBuilder(builder);
 
     for (auto entry : samePrefixEntries) {
@@ -738,17 +739,7 @@ void EBPFTablePSA::emitKeysAndValues(CodeBuilder* builder,
         // construct key
         builder->emitIndent();
         builder->appendFormat("struct %s %s = ", keyTypeName.c_str(), keyName.c_str());
-        builder->blockStart();
-        for (size_t k = 0; k < keyGenerator->keyElements.size(); k++) {
-            auto keyElement = keyGenerator->keyElements[k];
-            cstring fieldName = get(keyFieldNames, keyElement);
-            CHECK_NULL(fieldName);
-            builder->emitIndent();
-            builder->appendFormat(".%s = ", fieldName.c_str());
-            entry->keys->components[k]->apply(cg);
-            builder->appendLine(",");
-        }
-        builder->blockEnd(false);
+        cg.generateKeyInitializer(entry);
         builder->endOfStatement(true);
 
         // construct value
@@ -760,7 +751,7 @@ void EBPFTablePSA::emitKeysAndValues(CodeBuilder* builder,
 void EBPFTablePSA::emitKeyMasks(CodeBuilder* builder,
                                 std::vector<std::vector<const IR::Entry*>>& entriesGrpedByPrefix,
                                 std::vector<cstring>& keyMasksNames) {
-    EBPFTablePSAInitializerCodeGen cg(program->refMap, program->typeMap);
+    EBPFTablePSAInitializerCodeGen cg(program->refMap, program->typeMap, this);
     cg.setBuilder(builder);
 
     for (auto samePrefixEntries : entriesGrpedByPrefix) {

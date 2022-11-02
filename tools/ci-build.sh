@@ -89,7 +89,7 @@ function install_ptf_ebpf_test_deps() (
 
   git clone --depth 1 --recursive --branch T77 https://github.com/NIKSS-vSwitch/nikss /tmp/nikss
   cd /tmp/nikss
-  git reset --hard 2120d81
+  git reset --hard e261129
   ./build_libbpf.sh
   mkdir build
   cd build

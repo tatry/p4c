@@ -73,8 +73,6 @@ class EBPFTable : public EBPFTableBase {
     void initKey();
 
  protected:
-    const cstring prefixFieldName = "prefixlen";
-
     bool isLPMTable() const;
     bool isTernaryTable() const;
 
@@ -96,6 +94,7 @@ class EBPFTable : public EBPFTableBase {
     // Use 1024 by default.
     // TODO: make it configurable using compiler options.
     size_t size = 1024;
+    const cstring prefixFieldName = "prefixlen";
 
     EBPFTable(const EBPFProgram* program, const IR::TableBlock* table, CodeGenInspector* codeGen);
     EBPFTable(const EBPFProgram* program, CodeGenInspector* codeGen, cstring name);
