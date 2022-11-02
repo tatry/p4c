@@ -72,10 +72,11 @@ class EBPFTable : public EBPFTableBase {
 
     void initKey();
 
- protected:
+ public:
     bool isLPMTable() const;
     bool isTernaryTable() const;
 
+ protected:
     void emitTernaryInstance(CodeBuilder* builder);
 
     virtual void validateKeys() const;

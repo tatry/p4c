@@ -142,6 +142,7 @@ class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
     unsigned currentKeyEntryIndex = 0;
     const IR::Entry *currentEntry = nullptr;
     const EBPFTablePSA *table = nullptr;
+    bool tableHasTernaryMatch = false;
 
     cstring generateHexStr(const big_int &value, unsigned width, const IR::Expression *expr) {
         unsigned nibbles = 2 * ROUNDUP(width, 8);  // the required length of hex string, must be even number
@@ -161,7 +162,10 @@ class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
 
  public:
     EBPFTablePSAInitializerCodeGen(P4::ReferenceMap* refMap, P4::TypeMap* typeMap, const EBPFTablePSA *table)
-        : CodeGenInspector(refMap, typeMap), table(table) {}
+        : CodeGenInspector(refMap, typeMap), table(table) {
+        if (table)
+            tableHasTernaryMatch = table->isTernaryTable();
+    }
 
     void generateKeyInitializer(const IR::Entry *entry) {
         currentEntry = entry;
@@ -169,9 +173,9 @@ class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
         table->keyGenerator->apply(*this);
     }
 
-    void generateValueInitializer(const IR::Entry *entry) {
-        currentEntry = entry;
-        entry->action->apply(*this);
+    void generateValueInitializer(const IR::Expression *expr) {
+        currentEntry = nullptr;
+        expr->apply(*this);
     }
 
     bool preorder(const IR::Constant* expression) override {
@@ -222,7 +226,7 @@ class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
         cstring matchType = key->matchType->path->name.name;
         auto expr = currentEntry->keys->components[currentKeyEntryIndex];
         unsigned width = getEbpfTypeWidth(key->expression);
-        bool genPrefixLen = matchType == P4::P4CoreLibrary::instance.lpmMatch.name;
+        bool genPrefixLen = !tableHasTernaryMatch && matchType == P4::P4CoreLibrary::instance.lpmMatch.name;
         bool doSwapBytes = genPrefixLen && EBPFScalarType::generatesScalar(width);
 
         builder->emitIndent();
@@ -273,6 +277,34 @@ class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
     }
     void postorder(const IR::Key *) override {
         builder->blockEnd(false);
+    }
+
+    bool preorder(const IR::MethodCallExpression *mce) override {
+        auto mi = P4::MethodInstance::resolve(mce, refMap, typeMap);
+        auto ac = mi->to<P4::ActionCall>();
+        BUG_CHECK(ac != nullptr, "%1%: expected an action call", mi);
+        cstring actionName = EBPFObject::externalName(ac->action);
+        cstring fullActionName = table->p4ActionToActionIDName(ac->action);
+
+        builder->blockStart();
+        builder->emitIndent();
+        builder->appendFormat(".action = %s,", fullActionName);
+        builder->newline();
+
+        builder->emitIndent();
+        builder->appendFormat(".u = {.%s = {", actionName.c_str());
+        for (auto p : *mi->substitution.getParametersInArgumentOrder()) {
+            visit(mi->substitution.lookup(p));
+            builder->append(", ");
+        }
+        builder->appendLine("}}");
+
+        builder->blockEnd(false);
+        return false;
+    }
+
+    bool preorder(const IR::PathExpression *p) override {
+        return notSupported(p);
     }
 };
 
@@ -522,8 +554,7 @@ void EBPFTablePSA::emitConstEntriesInitializer(CodeBuilder* builder) {
         builder->endOfStatement(true);
 
         // construct value
-        auto *mce = entry->action->to<IR::MethodCallExpression>();
-        emitTableValue(builder, mce, valueName.c_str());
+        emitTableValue(builder, entry->action, valueName);
 
         // emit update
         auto ret = program->refMap->newName("ret");
@@ -541,12 +572,10 @@ void EBPFTablePSA::emitDefaultActionInitializer(CodeBuilder* builder) {
     const IR::P4Table* t = table->container;
     const IR::Expression* defaultAction = t->getDefaultAction();
     auto actionName = getActionNameExpression(defaultAction);
-    auto mce = defaultAction->to<IR::MethodCallExpression>();
     CHECK_NULL(actionName);
-    CHECK_NULL(mce);
     if (actionName->path->name.originalName != P4::P4CoreLibrary::instance.noAction.name) {
         auto value = program->refMap->newName("value");
-        emitTableValue(builder, mce, value.c_str());
+        emitTableValue(builder, defaultAction, value);
         auto ret = program->refMap->newName("ret");
         builder->emitIndent();
         builder->appendFormat("int %s = ", ret.c_str());
@@ -588,35 +617,14 @@ const IR::PathExpression* EBPFTablePSA::getActionNameExpression(const IR::Expres
     return mce->method->to<IR::PathExpression>();
 }
 
-void EBPFTablePSA::emitTableValue(CodeBuilder* builder, const IR::MethodCallExpression* actionMce,
+void EBPFTablePSA::emitTableValue(CodeBuilder* builder, const IR::Expression* expr,
                                   cstring valueName) {
-    auto mi = P4::MethodInstance::resolve(actionMce, program->refMap, program->typeMap);
-    auto ac = mi->to<P4::ActionCall>();
-    BUG_CHECK(ac != nullptr, "%1%: expected an action call", mi);
-    auto action = ac->action;
-
-    cstring actionName = EBPFObject::externalName(action);
-
     EBPFTablePSAInitializerCodeGen cg(program->refMap, program->typeMap, this);
     cg.setBuilder(builder);
 
     builder->emitIndent();
     builder->appendFormat("struct %s %s = ", valueTypeName.c_str(), valueName.c_str());
-    builder->blockStart();
-    builder->emitIndent();
-    cstring fullActionName = p4ActionToActionIDName(action);
-    builder->appendFormat(".action = %s,", fullActionName);
-    builder->newline();
-
-    builder->emitIndent();
-    builder->appendFormat(".u = {.%s = {", actionName.c_str());
-    for (auto p : *mi->substitution.getParametersInArgumentOrder()) {
-        auto arg = mi->substitution.lookup(p);
-        arg->apply(cg);
-        builder->append(", ");
-    }
-    builder->append("}},\n");
-    builder->blockEnd(false);
+    cg.generateValueInitializer(expr);
     builder->endOfStatement(true);
 }
 
@@ -742,9 +750,7 @@ void EBPFTablePSA::emitKeysAndValues(CodeBuilder* builder,
         cg.generateKeyInitializer(entry);
         builder->endOfStatement(true);
 
-        // construct value
-        auto* mce = entry->action->to<IR::MethodCallExpression>();
-        emitTableValue(builder, mce, valueName.c_str());
+        emitTableValue(builder, entry->action, valueName);
     }
 }
 

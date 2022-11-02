@@ -43,19 +43,21 @@ class EBPFTablePSA : public EBPFTable {
     void initDirectMeters();
     void initImplementation();
 
-    void emitTableValue(CodeBuilder* builder, const IR::MethodCallExpression* actionMce,
-                        cstring valueName);
-    void emitDefaultActionInitializer(CodeBuilder* builder);
-    void emitConstEntriesInitializer(CodeBuilder* builder);
-    void emitTernaryConstEntriesInitializer(CodeBuilder* builder);
-    void emitMapUpdateTraceMsg(CodeBuilder* builder, cstring mapName, cstring returnCode) const;
-    void emitValueMask(CodeBuilder* builder, cstring valueMask, cstring nextMask,
-                       int tupleId) const;
-    void emitKeyMasks(CodeBuilder* builder,
-                      std::vector<std::vector<const IR::Entry*>>& entriesGrpedByPrefix,
-                      std::vector<cstring>& keyMasksNames);
-    void emitKeysAndValues(CodeBuilder* builder, std::vector<const IR::Entry*>& samePrefixEntries,
-                           std::vector<cstring>& keyNames, std::vector<cstring>& valueNames);
+    void emitTableValue(CodeBuilder* builder, const IR::Expression* expr, cstring valueName);
+    void emitDefaultActionInitializer(CodeBuilder *builder);
+    void emitConstEntriesInitializer(CodeBuilder *builder);
+    void emitTernaryConstEntriesInitializer(CodeBuilder *builder);
+    void emitMapUpdateTraceMsg(CodeBuilder *builder, cstring mapName,
+                               cstring returnCode) const;
+    void emitValueMask(CodeBuilder *builder, cstring valueMask,
+                       cstring nextMask, int tupleId) const;
+    void emitKeyMasks(CodeBuilder *builder,
+                      std::vector<std::vector<const IR::Entry *>> &entriesGrpedByPrefix,
+                      std::vector<cstring> &keyMasksNames);
+    void emitKeysAndValues(CodeBuilder *builder,
+                           std::vector<const IR::Entry *> &samePrefixEntries,
+                           std::vector<cstring> &keyNames,
+                           std::vector<cstring> &valueNames);
 
     const IR::PathExpression* getActionNameExpression(const IR::Expression* expr) const;
 
