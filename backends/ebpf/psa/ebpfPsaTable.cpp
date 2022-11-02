@@ -145,7 +145,8 @@ class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
     bool tableHasTernaryMatch = false;
 
     cstring generateHexStr(const big_int &value, unsigned width, const IR::Expression *expr) {
-        unsigned nibbles = 2 * ROUNDUP(width, 8);  // the required length of hex string, must be even number
+        // the required length of hex string, must be an even number
+        unsigned nibbles = 2 * ROUNDUP(width, 8);
         cstring str = value.str(0, std::ios_base::hex);
         if (str.size() < nibbles)
             str = std::string(nibbles - str.size(), '0') + str;
@@ -161,7 +162,8 @@ class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
     }
 
  public:
-    EBPFTablePSAInitializerCodeGen(P4::ReferenceMap* refMap, P4::TypeMap* typeMap, const EBPFTablePSA *table)
+    EBPFTablePSAInitializerCodeGen(P4::ReferenceMap* refMap, P4::TypeMap* typeMap,
+                                   const EBPFTablePSA *table)
         : CodeGenInspector(refMap, typeMap), table(table) {
         if (table)
             tableHasTernaryMatch = table->isTernaryTable();
@@ -169,7 +171,8 @@ class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
 
     void generateKeyInitializer(const IR::Entry *entry) {
         currentEntry = entry;
-        // entry->keys is a IR::ListExpression, it lacks information about table key, so we have to visit table->keyGenerator
+        // entry->keys is a IR::ListExpression, it lacks information about table key,
+        // we have to visit table->keyGenerator.
         table->keyGenerator->apply(*this);
     }
 
@@ -201,13 +204,17 @@ class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
             builder->append(" & ");
             visit(expression->right);
         } else {
-            BUG_CHECK(expression->left->is<IR::Constant>(), "%1%: expected a constant value", expression->left);
-            BUG_CHECK(expression->right->is<IR::Constant>(), "%1%: expected a constant value", expression->right);
-            cstring value = generateHexStr(expression->left->to<IR::Constant>()->value, width, expression->left);
-            cstring mask = generateHexStr(expression->right->to<IR::Constant>()->value, width, expression->right);
+            auto lc = expression->left->to<IR::Constant>();
+            auto rc = expression->right->to<IR::Constant>();
+            BUG_CHECK(lc != nullptr, "%1%: expected a constant value", expression->left);
+            BUG_CHECK(rc != nullptr, "%1%: expected a constant value", expression->right);
+            cstring value = generateHexStr(lc->value, width, expression->left);
+            cstring mask = generateHexStr(rc->value, width, expression->right);
             builder->append("{ ");
             for (size_t i = 0; i < value.size() / 2; ++i)
-                builder->appendFormat("(0x%s & 0x%s), ", value.substr(2 * i, 2), mask.substr(2 * i, 2));
+                builder->appendFormat("(0x%s & 0x%s), ",
+                                      value.substr(2 * i, 2),
+                                      mask.substr(2 * i, 2));
             builder->append("}");
         }
 
@@ -226,7 +233,8 @@ class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
         cstring matchType = key->matchType->path->name.name;
         auto expr = currentEntry->keys->components[currentKeyEntryIndex];
         unsigned width = getEbpfTypeWidth(key->expression);
-        bool genPrefixLen = !tableHasTernaryMatch && matchType == P4::P4CoreLibrary::instance.lpmMatch.name;
+        bool isLPMMatch = matchType == P4::P4CoreLibrary::instance.lpmMatch.name;
+        bool genPrefixLen = !tableHasTernaryMatch && isLPMMatch;
         bool doSwapBytes = genPrefixLen && EBPFScalarType::generatesScalar(width);
 
         builder->emitIndent();
@@ -543,7 +551,7 @@ void EBPFTablePSA::emitConstEntriesInitializer(CodeBuilder* builder) {
     EBPFTablePSAInitializerCodeGen cg(program->refMap, program->typeMap, this);
     cg.setBuilder(builder);
 
-    for (auto entry: entries->entries) {
+    for (auto entry : entries->entries) {
         auto keyName = program->refMap->newName("key");
         auto valueName = program->refMap->newName("value");
 
@@ -684,7 +692,8 @@ void EBPFTablePSA::emitTernaryConstEntriesInitializer(CodeBuilder* builder) {
     builder->endOfStatement(true);
     builder->newline();
 
-    // TODO: each entry should lowered priority in order to match first possible entry in const entries
+    // TODO: each entry should have lowered priority in order to match
+    //       first possible entry in const entries
 
     // emit values + updates
     for (size_t i = 0; i < entriesGroupedByPrefix.size(); i++) {
