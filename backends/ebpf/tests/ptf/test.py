@@ -613,6 +613,8 @@ class LongFieldSupport(P4EbpfTest):
              "test_ipv6": "0004:1111:2222:3333:4444:5555:6666:7777", "exp_ipv6": "ffff:1111:2222:3333:4444:5555:6666:0004"},
             {"case": "ternary const entry", "table": None,
              "test_ipv6": "0005:1111:2222:3333:4444:5555:6666:7777", "exp_ipv6": "ffff:1111:2222:3333:4444:5555:6666:0005"},
+            {"case": "ternary const entry - exact match", "table": None,
+             "test_ipv6": "0006:1111:2222:3333:4444:5555:6666:7777", "exp_ipv6": "ffff:1111:2222:3333:4444:5555:6666:0006"},
             {"case": "default action", "table": None,  # defined by P4 program
              "no_table_matches": 1,  # default to 2 matches - one for default and one for any table above
              "test_ipv6": "aaaa:1111:2222:3333:4444:5555:6666:7777", "exp_ipv6": "ffff:1111:2222:3333:4444:5555:6666:aaaa"}

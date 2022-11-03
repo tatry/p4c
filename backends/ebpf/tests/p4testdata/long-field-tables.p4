@@ -140,6 +140,7 @@ control ingress(inout headers hdr,
         actions = { set_dst; NoAction; }
         const entries = {
             0x0005_1111_2222_3333_4444_5555_0000_7777 &&& 0xffff_ffff_ffff_ffff_ffff_ffff_0000_ffff : set_dst(128w0xffff_1111_2222_3333_4444_5555_6666_0005);
+            0x0006_1111_2222_3333_4444_5555_6666_7777 &&& 0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff : set_dst(128w0xffff_1111_2222_3333_4444_5555_6666_0006);
         }
     }
 

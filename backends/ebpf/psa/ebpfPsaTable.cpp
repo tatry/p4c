@@ -137,29 +137,39 @@ class EBPFTablePSAImplementationPropertyVisitor : public EBPFTablePsaPropertyVis
     }
 };
 
+class EBPFTablePSAInitializerUtils {
+ public:
+    // return *real* number of bits required by type
+    static unsigned ebpfTypeWidth(P4::TypeMap* typeMap, const IR::Expression *expr) {
+        auto type = typeMap->getType(expr);
+        auto ebpfType = EBPFTypeFactory::instance->create(type);
+        if (auto scalar = ebpfType->to<EBPFScalarType>()) {
+            unsigned width = scalar->implementationWidthInBits();
+            unsigned alignment = scalar->alignment() * 8;
+            unsigned units = ROUNDUP(width, alignment);
+            return units * alignment;
+        }
+        return 8;  // assume 1 byte if not available such information
+    }
+
+    // Generate hex string and prepend it with zeroes when shorter than required width
+    static cstring genHexStr(const big_int &value, unsigned width, const IR::Expression *expr) {
+        // the required length of hex string, must be an even number
+        unsigned nibbles = 2 * ROUNDUP(width, 8);
+        auto str = value.str(0, std::ios_base::hex);
+        if (str.size() < nibbles)
+            str = std::string(nibbles - str.size(), '0') + str;
+        BUG_CHECK(str.size() == nibbles, "%1%: value size does not match %2% bits", expr, width);
+        return str;
+    }
+};
+
 class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
  protected:
     unsigned currentKeyEntryIndex = 0;
     const IR::Entry *currentEntry = nullptr;
     const EBPFTablePSA *table = nullptr;
     bool tableHasTernaryMatch = false;
-
-    cstring generateHexStr(const big_int &value, unsigned width, const IR::Expression *expr) {
-        // the required length of hex string, must be an even number
-        unsigned nibbles = 2 * ROUNDUP(width, 8);
-        cstring str = value.str(0, std::ios_base::hex);
-        if (str.size() < nibbles)
-            str = std::string(nibbles - str.size(), '0') + str;
-        BUG_CHECK(str.size() == nibbles, "%1%: value size does not match %2% bits", expr, width);
-        return str;
-    }
-
-    unsigned getEbpfTypeWidth(const IR::Expression *expr) {
-        auto type = typeMap->getType(expr);
-        auto ebpfType = EBPFTypeFactory::instance->create(type);
-        auto scalar = ebpfType->to<EBPFScalarType>();
-        return scalar ? scalar->implementationWidthInBits() : 0;
-    }
 
  public:
     EBPFTablePSAInitializerCodeGen(P4::ReferenceMap* refMap, P4::TypeMap* typeMap,
@@ -172,7 +182,7 @@ class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
     void generateKeyInitializer(const IR::Entry *entry) {
         currentEntry = entry;
         // entry->keys is a IR::ListExpression, it lacks information about table key,
-        // we have to visit table->keyGenerator.
+        // we have to visit table->keyGenerator instead.
         table->keyGenerator->apply(*this);
     }
 
@@ -181,13 +191,13 @@ class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
         expr->apply(*this);
     }
 
-    bool preorder(const IR::Constant* expression) override {
-        unsigned width = getEbpfTypeWidth(expression);
+    bool preorder(const IR::Constant* expr) override {
+        unsigned width = EBPFTablePSAInitializerUtils::ebpfTypeWidth(typeMap, expr);
 
         if (EBPFScalarType::generatesScalar(width))
-            return CodeGenInspector::preorder(expression);
+            return CodeGenInspector::preorder(expr);
 
-        cstring str = generateHexStr(expression->value, width, expression);
+        cstring str = EBPFTablePSAInitializerUtils::genHexStr(expr->value, width, expr);
         builder->append("{ ");
         for (size_t i = 0; i < str.size() / 2; ++i)
             builder->appendFormat("0x%s, ", str.substr(2 * i, 2));
@@ -196,20 +206,20 @@ class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
         return false;
     }
 
-    bool preorder(const IR::Mask* expression) override {
-        unsigned width = getEbpfTypeWidth(expression->left);
+    bool preorder(const IR::Mask* expr) override {
+        unsigned width = EBPFTablePSAInitializerUtils::ebpfTypeWidth(typeMap, expr->left);
 
         if (EBPFScalarType::generatesScalar(width)) {
-            visit(expression->left);
+            visit(expr->left);
             builder->append(" & ");
-            visit(expression->right);
+            visit(expr->right);
         } else {
-            auto lc = expression->left->to<IR::Constant>();
-            auto rc = expression->right->to<IR::Constant>();
-            BUG_CHECK(lc != nullptr, "%1%: expected a constant value", expression->left);
-            BUG_CHECK(rc != nullptr, "%1%: expected a constant value", expression->right);
-            cstring value = generateHexStr(lc->value, width, expression->left);
-            cstring mask = generateHexStr(rc->value, width, expression->right);
+            auto lc = expr->left->to<IR::Constant>();
+            auto rc = expr->right->to<IR::Constant>();
+            BUG_CHECK(lc != nullptr, "%1%: expected a constant value", expr->left);
+            BUG_CHECK(rc != nullptr, "%1%: expected a constant value", expr->right);
+            cstring value = EBPFTablePSAInitializerUtils::genHexStr(lc->value, width, expr->left);
+            cstring mask = EBPFTablePSAInitializerUtils::genHexStr(rc->value, width, expr->right);
             builder->append("{ ");
             for (size_t i = 0; i < value.size() / 2; ++i)
                 builder->appendFormat("(0x%s & 0x%s), ",
@@ -221,6 +231,7 @@ class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
         return false;
     }
 
+    // {pre,post}orders for table key initializer
     bool preorder(const IR::Key *) override {
         BUG_CHECK(table->keyGenerator->keyElements.size() == currentEntry->keys->size(),
                   "Entry key size does not match table key size");
@@ -232,7 +243,7 @@ class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
         cstring fieldName = ::get(table->keyFieldNames, key);
         cstring matchType = key->matchType->path->name.name;
         auto expr = currentEntry->keys->components[currentKeyEntryIndex];
-        unsigned width = getEbpfTypeWidth(key->expression);
+        unsigned width = EBPFTablePSAInitializerUtils::ebpfTypeWidth(typeMap, key->expression);
         bool isLPMMatch = matchType == P4::P4CoreLibrary::instance.lpmMatch.name;
         bool genPrefixLen = !tableHasTernaryMatch && isLPMMatch;
         bool doSwapBytes = genPrefixLen && EBPFScalarType::generatesScalar(width);
@@ -287,6 +298,7 @@ class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
         builder->blockEnd(false);
     }
 
+    // preorder for value table value initializer
     bool preorder(const IR::MethodCallExpression *mce) override {
         auto mi = P4::MethodInstance::resolve(mce, refMap, typeMap);
         auto ac = mi->to<P4::ActionCall>();
@@ -313,6 +325,75 @@ class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
 
     bool preorder(const IR::PathExpression *p) override {
         return notSupported(p);
+    }
+};
+
+// Generate mask for whole table key
+class EBPFTablePSATernaryTableMaskGenerator : public Inspector {
+ protected:
+    P4::ReferenceMap* refMap;
+    P4::TypeMap* typeMap;
+    // Prefix generation is done using string concatenation,
+    // so use std::string as it behave better in this case than cstring
+    std::string mask;
+
+ public:
+    EBPFTablePSATernaryTableMaskGenerator(P4::ReferenceMap* refMap, P4::TypeMap* typeMap) :
+            refMap(refMap), typeMap(typeMap) {}
+
+    cstring getMaskStr(const IR::Entry *entry) {
+        mask.clear();
+        entry->keys->apply(*this);
+        return mask;
+    }
+
+    bool preorder(const IR::Constant* expr) override {
+        // exact match, set all bits as 'care'
+        unsigned bytes = ROUNDUP(EBPFTablePSAInitializerUtils::ebpfTypeWidth(typeMap, expr), 8);
+        for (unsigned i = 0; i < bytes; ++i)
+            mask += "ff";
+        return false;
+    }
+    bool preorder(const IR::Mask* expr) override {
+        BUG_CHECK(expr->right->is<IR::Constant>(), "%1%: Expected a constant value", expr->right);
+        auto & value = expr->right->to<IR::Constant>()->value;
+        unsigned width = EBPFTablePSAInitializerUtils::ebpfTypeWidth(typeMap, expr->right);
+        mask += EBPFTablePSAInitializerUtils::genHexStr(value, width, expr->right);
+        return false;
+    }
+};
+
+// Build initializer for a single table key entry
+class EBPFTablePSATernaryKeyMaskGenerator : public EBPFTablePSAInitializerCodeGen {
+ public:
+    EBPFTablePSATernaryKeyMaskGenerator(P4::ReferenceMap* refMap, P4::TypeMap* typeMap) :
+            EBPFTablePSAInitializerCodeGen(refMap, typeMap, nullptr) {}
+
+    bool preorder(const IR::Constant* expr) override {
+        // MidEnd transforms 0xffff... masks into exact match
+        // So we receive there a Constant same as exact match
+        // So we have to create 0xffff... mask on our own
+        unsigned width = EBPFTablePSAInitializerUtils::ebpfTypeWidth(typeMap, expr);
+        unsigned bytes = ROUNDUP(width, 8);
+
+        if (EBPFScalarType::generatesScalar(width)) {
+            builder->append("0x");
+            for (unsigned i = 0; i < bytes; ++i)
+                builder->append("ff");
+        } else {
+            builder->append("{ ");
+            for (size_t i = 0; i < bytes; ++i)
+                builder->append("0xff, ");
+            builder->append("}");
+        }
+
+        return false;
+    }
+
+    bool preorder(const IR::Mask* expr) override {
+        BUG_CHECK(expr->right->is<IR::Constant>(), "%1%: expected constant value", expr->right);
+        EBPFTablePSAInitializerCodeGen::preorder(expr->right->to<IR::Constant>());
+        return false;
     }
 };
 
@@ -477,7 +558,7 @@ void EBPFTablePSA::emitInstance(CodeBuilder* builder) {
     if (isTernaryTable()) {
         emitTernaryInstance(builder);
         if (hasConstEntries()) {
-            auto entries = getConstEntriesGroupedByPrefix();
+            auto entries = getConstEntriesGroupedByMask();
             // A number of tuples is equal to number of unique prefixes
             int nrOfTuples = entries.size();
             for (int i = 0; i < nrOfTuples; i++) {
@@ -662,8 +743,9 @@ bool EBPFTablePSA::dropOnNoMatchingEntryFound() const {
 
 void EBPFTablePSA::emitTernaryConstEntriesInitializer(CodeBuilder* builder) {
     std::vector<std::vector<const IR::Entry*>> entriesGroupedByPrefix =
-        getConstEntriesGroupedByPrefix();
-    if (entriesGroupedByPrefix.empty()) return;
+            getConstEntriesGroupedByMask();
+    if (entriesGroupedByPrefix.empty())
+        return;
 
     std::vector<cstring> keyMasksNames;
     int tuple_id = 0;  // We have preallocated tuple maps with ids starting from 0
@@ -693,7 +775,11 @@ void EBPFTablePSA::emitTernaryConstEntriesInitializer(CodeBuilder* builder) {
     builder->newline();
 
     // TODO: each entry should have lowered priority in order to match
-    //       first possible entry in const entries
+    //  first possible entry in const entries.
+    //  See https://p4.org/p4-spec/docs/P4-16-v-1.2.3.html#sec-entries (paragraph 14.2.1.4):
+    //      "If the runtime API requires a priority for the entries of a table—e.g. when using the
+    //      P4 Runtime API, tables with at least one ternary search key field—then the entries are
+    //      matched in program order, stopping at the first matching entry."
 
     // emit values + updates
     for (size_t i = 0; i < entriesGroupedByPrefix.size(); i++) {
@@ -766,7 +852,7 @@ void EBPFTablePSA::emitKeysAndValues(CodeBuilder* builder,
 void EBPFTablePSA::emitKeyMasks(CodeBuilder* builder,
                                 std::vector<std::vector<const IR::Entry*>>& entriesGrpedByPrefix,
                                 std::vector<cstring>& keyMasksNames) {
-    EBPFTablePSAInitializerCodeGen cg(program->refMap, program->typeMap, this);
+    EBPFTablePSATernaryKeyMaskGenerator cg(program->refMap, program->typeMap);
     cg.setBuilder(builder);
 
     for (auto samePrefixEntries : entriesGrpedByPrefix) {
@@ -791,50 +877,18 @@ void EBPFTablePSA::emitKeyMasks(CodeBuilder* builder,
             builder->emitIndent();
             ebpfType->declare(builder, fieldName, false);
             builder->append(" = ");
-            if (auto mask = expr->to<IR::Mask>()) {
-                mask->right->apply(cg);
-                builder->endOfStatement(true);
-            } else {
-                // MidEnd transforms 0xffff... masks into exact match
-                // So we receive there a Constant same as exact match
-                // So we have to create 0xffff... mask on our own
-                emitMaskForExactMatch(builder, fieldName, ebpfType);
-            }
+            expr->apply(cg);
+            builder->endOfStatement(true);
             builder->emitIndent();
             builder->appendFormat("__builtin_memcpy(%s, &%s, sizeof(%s))", keyFieldNamePtr,
                                   fieldName, fieldName);
             builder->endOfStatement(true);
+            builder->emitIndent();
             builder->appendFormat("%s = %s + sizeof(%s)", keyFieldNamePtr, keyFieldNamePtr,
                                   fieldName);
             builder->endOfStatement(true);
         }
     }
-}
-
-void EBPFTablePSA::emitMaskForExactMatch(CodeBuilder* builder, cstring& fieldName,
-                                         EBPFType* ebpfType) const {
-    unsigned width = 0;
-    if (auto hasWidth = ebpfType->to<IHasWidth>()) {
-        width = hasWidth->widthInBits();
-        if (width <= 8) {
-            width = 8;
-        } else if (width <= 16) {
-            width = 16;
-        } else if (width <= 32) {
-            width = 32;
-        } else if (width <= 64) {
-            width = 64;
-        } else {
-            // TODO: handle width > 64 bits
-            error(ErrorType::ERR_UNSUPPORTED,
-                  "%1%: fields wider than 64 bits are not supported yet", fieldName);
-        }
-    } else {
-        BUG("Cannot assess field bit width");
-    }
-    builder->append("0x");
-    for (size_t j = 0; j < width / 8; j++) builder->append("ff");
-    builder->endOfStatement(true);
 }
 
 void EBPFTablePSA::emitValueMask(CodeBuilder* builder, const cstring valueMask,
@@ -865,51 +919,28 @@ void EBPFTablePSA::emitValueMask(CodeBuilder* builder, const cstring valueMask,
  * will give as a result a vector of two vectors (each with two entries).
  * @return a vector of vectors with const entries that have the same prefix
  */
-std::vector<std::vector<const IR::Entry*>> EBPFTablePSA::getConstEntriesGroupedByPrefix() {
-    std::vector<std::vector<const IR::Entry*>> entriesGroupedByPrefix;
+std::vector<std::vector<const IR::Entry*>> EBPFTablePSA::getConstEntriesGroupedByMask() {
+    std::vector<std::vector<const IR::Entry*>> result;
     const IR::EntriesList* entries = table->container->getEntries();
 
-    if (!entries) return entriesGroupedByPrefix;
+    if (!entries)
+        return result;
 
-    for (int i = 0; i < (int)entries->entries.size(); i++) {
-        auto mainEntr = entries->entries[i];
-        if (!entriesGroupedByPrefix.empty()) {
-            auto last = entriesGroupedByPrefix.back();
-            auto it = std::find(last.begin(), last.end(), mainEntr);
-            if (it != last.end()) {
-                // If this entry was added in a previous iteration
-                continue;
-            }
-        }
-        std::vector<const IR::Entry*> samePrefEntries;
-        samePrefEntries.push_back(mainEntr);
-        for (int j = i; j < (int)entries->entries.size(); j++) {
-            auto refEntr = entries->entries[j];
-            if (i != j) {
-                bool isTheSamePrefix = true;
-                for (size_t k = 0; k < mainEntr->keys->components.size(); k++) {
-                    auto k1 = mainEntr->keys->components[k];
-                    auto k2 = refEntr->keys->components[k];
-                    if (auto k1Mask = k1->to<IR::Mask>()) {
-                        if (auto k2Mask = k2->to<IR::Mask>()) {
-                            auto val1 = k1Mask->right->to<IR::Constant>();
-                            auto val2 = k2Mask->right->to<IR::Constant>();
-                            if (val1->value != val2->value) {
-                                isTheSamePrefix = false;
-                                break;
-                            }
-                        }
-                    }
-                }
-                if (isTheSamePrefix) {
-                    samePrefEntries.push_back(refEntr);
-                }
-            }
-        }
-        entriesGroupedByPrefix.push_back(samePrefEntries);
+    // Group entries by the same mask, container will do deduplication for us. The order of
+    // entries will be changed but this is not a problem because of priority. Ebpf algorithm use
+    // TSS, so every mask have to be tested and there is no strict requirements on masks order.
+    EBPFTablePSATernaryTableMaskGenerator maskGenerator(program->refMap, program->typeMap);
+    std::unordered_map<cstring, std::vector<const IR::Entry*>> entriesGroupedByMask;
+    for (auto entry : entries->entries) {
+        cstring mask = maskGenerator.getMaskStr(entry);
+        entriesGroupedByMask[mask].push_back(entry);
     }
 
-    return entriesGroupedByPrefix;
+    // build results
+    for (auto & vec : entriesGroupedByMask) {
+        result.push_back(vec.second);
+    }
+    return result;
 }
 
 bool EBPFTablePSA::hasConstEntries() {
