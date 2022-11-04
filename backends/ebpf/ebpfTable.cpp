@@ -477,6 +477,14 @@ void EBPFTable::emitKey(CodeBuilder* builder, cstring keyName) {
                 swap = "bpf_htonl";
             } else if (width <= 64) {
                 swap = "bpf_htonll";
+            } else {
+                // The code work with width > 64 bits but filter model has incomplete support
+                // TODO: handle width > 64 bits
+                if (program->options.arch.isNullOrEmpty() || program->options.arch == "filter") {
+                    ::error(ErrorType::ERR_UNSUPPORTED,
+                            "%1%: fields wider than 64 bits are not supported yet",
+                            fieldName);
+                }
             }
         }
 
