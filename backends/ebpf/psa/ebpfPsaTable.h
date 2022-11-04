@@ -72,7 +72,6 @@ class EBPFTablePSA : public EBPFTable {
     EBPFTablePSA(const EBPFProgram* program, CodeGenInspector* codeGen, cstring name);
 
     void emitInstance(CodeBuilder* builder) override;
-    void emitTypes(CodeBuilder* builder) override;
     void emitValueStructStructure(CodeBuilder* builder) override;
     void emitAction(CodeBuilder* builder, cstring valueName, cstring actionRunVariable) override;
     void emitInitializer(CodeBuilder* builder) override;

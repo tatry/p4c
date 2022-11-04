@@ -173,7 +173,7 @@ class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
 
  public:
     EBPFTablePSAInitializerCodeGen(P4::ReferenceMap* refMap, P4::TypeMap* typeMap,
-                                   const EBPFTablePSA *table)
+                                   const EBPFTablePSA *table = nullptr)
         : CodeGenInspector(refMap, typeMap), table(table) {
         if (table)
             tableHasTernaryMatch = table->isTernaryTable();
@@ -268,7 +268,6 @@ class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
         builder->appendLine(",");
 
         if (genPrefixLen) {
-            // TODO: fix prefix calculation
             unsigned prefixLen = width;
             if (auto km = expr->to<IR::Mask>()) {
                 auto trailing_zeros = [width](const big_int &n) -> unsigned {
@@ -287,7 +286,11 @@ class EBPFTablePSAInitializerCodeGen : public CodeGenInspector {
             }
 
             builder->emitIndent();
-            builder->appendFormat(".%s = %u", table->prefixFieldName.c_str(), prefixLen);
+            builder->appendFormat(".%s = 8*offsetof(struct %s, %s)-32 + %u",
+                                  table->prefixFieldName.c_str(),
+                                  table->keyTypeName.c_str(),
+                                  fieldName.c_str(),
+                                  prefixLen);
             builder->appendLine(",");
         }
 
@@ -334,7 +337,7 @@ class EBPFTablePSATernaryTableMaskGenerator : public Inspector {
     P4::ReferenceMap* refMap;
     P4::TypeMap* typeMap;
     // Prefix generation is done using string concatenation,
-    // so use std::string as it behave better in this case than cstring
+    // so use std::string as it behave better in this case than cstring.
     std::string mask;
 
  public:
@@ -355,6 +358,7 @@ class EBPFTablePSATernaryTableMaskGenerator : public Inspector {
         return false;
     }
     bool preorder(const IR::Mask* expr) override {
+        // Available value and mask, so use only this mask
         BUG_CHECK(expr->right->is<IR::Constant>(), "%1%: Expected a constant value", expr->right);
         auto & value = expr->right->to<IR::Constant>()->value;
         unsigned width = EBPFTablePSAInitializerUtils::ebpfTypeWidth(typeMap, expr->right);
@@ -363,7 +367,7 @@ class EBPFTablePSATernaryTableMaskGenerator : public Inspector {
     }
 };
 
-// Build initializer for a single table key entry
+// Build mask initializer for a single table key entry
 class EBPFTablePSATernaryKeyMaskGenerator : public EBPFTablePSAInitializerCodeGen {
  public:
     EBPFTablePSATernaryKeyMaskGenerator(P4::ReferenceMap* refMap, P4::TypeMap* typeMap) :
@@ -391,6 +395,7 @@ class EBPFTablePSATernaryKeyMaskGenerator : public EBPFTablePSAInitializerCodeGe
     }
 
     bool preorder(const IR::Mask* expr) override {
+        // Build mask value using base class implementation
         BUG_CHECK(expr->right->is<IR::Constant>(), "%1%: expected constant value", expr->right);
         EBPFTablePSAInitializerCodeGen::preorder(expr->right->to<IR::Constant>());
         return false;
@@ -582,11 +587,6 @@ void EBPFTablePSA::emitInstance(CodeBuilder* builder) {
     }
 }
 
-void EBPFTablePSA::emitTypes(CodeBuilder* builder) {
-    EBPFTable::emitTypes(builder);
-    // TODO: placeholder for handling PSA-specific types
-}
-
 /**
  * Order of emitting counters and meters affects generated layout of BPF map value.
  * Do not change this order!
@@ -742,8 +742,7 @@ bool EBPFTablePSA::dropOnNoMatchingEntryFound() const {
 }
 
 void EBPFTablePSA::emitTernaryConstEntriesInitializer(CodeBuilder* builder) {
-    std::vector<std::vector<const IR::Entry*>> entriesGroupedByPrefix =
-            getConstEntriesGroupedByMask();
+    auto entriesGroupedByPrefix = getConstEntriesGroupedByMask();
     if (entriesGroupedByPrefix.empty())
         return;
 
