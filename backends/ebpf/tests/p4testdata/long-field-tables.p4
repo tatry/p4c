@@ -155,7 +155,7 @@ control ingress(inout headers hdr,
         tbl_const_lpm.apply();
         tbl_const_ternary.apply();
 
-        send_to_port(ostd, (PortId_t) 5);
+        send_to_port(ostd, (PortId_t) PORT0);
     }
 }
 

@@ -630,4 +630,4 @@ class LongFieldSupport(P4EbpfTest):
             exp_pkt[IPv6].dst = t["exp_ipv6"]
             exp_pkt[IPv6].hlim = exp_pkt[IPv6].hlim - t.get("no_table_matches", 2)
             testutils.send_packet(self, PORT0, pkt)
-            testutils.verify_packet_any_port(self, exp_pkt, ALL_PORTS)
+            testutils.verify_packet_any_port(self, exp_pkt, PTF_PORTS)
