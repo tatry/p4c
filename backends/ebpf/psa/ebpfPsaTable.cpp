@@ -336,7 +336,7 @@ class EBPFTablePSATernaryTableMaskGenerator : public Inspector {
  protected:
     P4::ReferenceMap* refMap;
     P4::TypeMap* typeMap;
-    // Prefix generation is done using string concatenation,
+    // Mask generation is done using string concatenation,
     // so use std::string as it behave better in this case than cstring.
     std::string mask;
 
@@ -564,12 +564,13 @@ void EBPFTablePSA::emitInstance(CodeBuilder* builder) {
         emitTernaryInstance(builder);
         if (hasConstEntries()) {
             auto entries = getConstEntriesGroupedByMask();
-            // A number of tuples is equal to number of unique prefixes
-            int nrOfTuples = entries.size();
-            for (int i = 0; i < nrOfTuples; i++) {
-                builder->target->emitTableDecl(
-                    builder, instanceName + "_tuple_" + std::to_string(i), TableHash,
-                    "struct " + keyTypeName, "struct " + valueTypeName, size);
+            // A number of tuples is equal to number of unique masks
+            unsigned nrOfTuples = entries.size();
+            for (unsigned i = 0; i < nrOfTuples; i++) {
+                builder->target->emitTableDecl(builder,
+                                               instanceName + "_tuple_" + std::to_string(i),
+                                               TableHash,"struct " + keyTypeName,
+                                               "struct " + valueTypeName, size);
             }
         }
     } else {
@@ -742,8 +743,8 @@ bool EBPFTablePSA::dropOnNoMatchingEntryFound() const {
 }
 
 void EBPFTablePSA::emitTernaryConstEntriesInitializer(CodeBuilder* builder) {
-    auto entriesGroupedByPrefix = getConstEntriesGroupedByMask();
-    if (entriesGroupedByPrefix.empty())
+    auto entriesGroupedByMask = getConstEntriesGroupedByMask();
+    if (entriesGroupedByMask.empty())
         return;
 
     std::vector<cstring> keyMasksNames;
@@ -756,7 +757,7 @@ void EBPFTablePSA::emitTernaryConstEntriesInitializer(CodeBuilder* builder) {
     builder->endOfStatement(true);
 
     // emit key masks
-    emitKeyMasks(builder, entriesGroupedByPrefix, keyMasksNames);
+    emitKeyMasks(builder, entriesGroupedByMask, keyMasksNames);
 
     builder->newline();
 
@@ -774,8 +775,8 @@ void EBPFTablePSA::emitTernaryConstEntriesInitializer(CodeBuilder* builder) {
     builder->newline();
 
     // emit values + updates
-    for (size_t i = 0; i < entriesGroupedByPrefix.size(); i++) {
-        auto samePrefixEntries = entriesGroupedByPrefix[i];
+    for (size_t i = 0; i < entriesGroupedByMask.size(); i++) {
+        auto sameMaskEntries = entriesGroupedByMask[i];
         valueMask = program->refMap->newName("value_mask");
         std::vector<cstring> keyNames;
         std::vector<cstring> valueNames;
@@ -783,14 +784,14 @@ void EBPFTablePSA::emitTernaryConstEntriesInitializer(CodeBuilder* builder) {
         cstring valuesArray = program->refMap->newName("values");
         cstring keyMaskVarName = keyMasksNames[i];
 
-        if (entriesGroupedByPrefix.size() > i + 1) {
+        if (entriesGroupedByMask.size() > i + 1) {
             nextMask = keyMasksNames[i + 1];
         } else {
             nextMask = nullptr;
         }
         emitValueMask(builder, valueMask, nextMask, tuple_id);
         builder->newline();
-        emitKeysAndValues(builder, samePrefixEntries, keyNames, valueNames);
+        emitKeysAndValues(builder, sameMaskEntries, keyNames, valueNames);
 
         // construct keys array
         builder->newline();
@@ -809,10 +810,16 @@ void EBPFTablePSA::emitTernaryConstEntriesInitializer(CodeBuilder* builder) {
 
         builder->newline();
         builder->emitIndent();
-        builder->appendFormat("%s(%s, %s, &%s, &%s, &%s, &%s, %s, %s)", addPrefixFunctionName,
-                              cstring::to_cstring(samePrefixEntries.size()),
-                              cstring::to_cstring(tuple_id), tuplesMapName, prefixesMapName,
-                              keyMaskVarName, valueMask, keysArray, valuesArray);
+        builder->appendFormat("%s(%s, %s, &%s, &%s, &%s, &%s, %s, %s)",
+                              addPrefixFunctionName,
+                              cstring::to_cstring(sameMaskEntries.size()),
+                              cstring::to_cstring(tuple_id),
+                              tuplesMapName,
+                              prefixesMapName,
+                              keyMaskVarName,
+                              valueMask,
+                              keysArray,
+                              valuesArray);
         builder->endOfStatement(true);
 
         tuple_id++;
@@ -853,8 +860,8 @@ void EBPFTablePSA::emitKeyMasks(CodeBuilder* builder,
     EBPFTablePSATernaryKeyMaskGenerator cg(program->refMap, program->typeMap);
     cg.setBuilder(builder);
 
-    for (auto samePrefixEntries : entriesGroupedByMask) {
-        auto firstEntry = samePrefixEntries.front().entry;
+    for (auto sameMaskEntries : entriesGroupedByMask) {
+        auto firstEntry = sameMaskEntries.front().entry;
         cstring keyFieldName = program->refMap->newName("key_mask");
         keyMasksNames.push_back(keyFieldName);
 
