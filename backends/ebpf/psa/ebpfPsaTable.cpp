@@ -773,13 +773,6 @@ void EBPFTablePSA::emitTernaryConstEntriesInitializer(CodeBuilder* builder) {
     builder->endOfStatement(true);
     builder->newline();
 
-    // TODO: each entry should have lowered priority in order to match
-    //  first possible entry in const entries.
-    //  See https://p4.org/p4-spec/docs/P4-16-v-1.2.3.html#sec-entries (paragraph 14.2.1.4):
-    //      "If the runtime API requires a priority for the entries of a table—e.g. when using the
-    //      P4 Runtime API, tables with at least one ternary search key field—then the entries are
-    //      matched in program order, stopping at the first matching entry."
-
     // emit values + updates
     for (size_t i = 0; i < entriesGroupedByPrefix.size(); i++) {
         auto samePrefixEntries = entriesGroupedByPrefix[i];
@@ -827,13 +820,13 @@ void EBPFTablePSA::emitTernaryConstEntriesInitializer(CodeBuilder* builder) {
 }
 
 void EBPFTablePSA::emitKeysAndValues(CodeBuilder* builder,
-                                     std::vector<const IR::Entry*>& samePrefixEntries,
+                                     EntriesGroup_t& sameMaskEntries,
                                      std::vector<cstring>& keyNames,
                                      std::vector<cstring>& valueNames) {
     EBPFTablePSAInitializerCodeGen cg(program->refMap, program->typeMap, this);
     cg.setBuilder(builder);
 
-    for (auto entry : samePrefixEntries) {
+    for (auto & entry : sameMaskEntries) {
         cstring keyName = program->refMap->newName("key");
         cstring valueName = program->refMap->newName("value");
         keyNames.push_back(keyName);
@@ -841,21 +834,27 @@ void EBPFTablePSA::emitKeysAndValues(CodeBuilder* builder,
         // construct key
         builder->emitIndent();
         builder->appendFormat("struct %s %s = ", keyTypeName.c_str(), keyName.c_str());
-        cg.generateKeyInitializer(entry);
+        cg.generateKeyInitializer(entry.entry);
         builder->endOfStatement(true);
 
-        emitTableValue(builder, entry->action, valueName);
+        // construct value
+        emitTableValue(builder, entry.entry->action, valueName);
+
+        // setup priority of the entry
+        builder->emitIndent();
+        builder->appendFormat("%s.priority = %u", valueName.c_str(), entry.priority);
+        builder->endOfStatement(true);
     }
 }
 
 void EBPFTablePSA::emitKeyMasks(CodeBuilder* builder,
-                                std::vector<std::vector<const IR::Entry*>>& entriesGrpedByPrefix,
+                                EntriesGroupedByMask_t& entriesGroupedByMask,
                                 std::vector<cstring>& keyMasksNames) {
     EBPFTablePSATernaryKeyMaskGenerator cg(program->refMap, program->typeMap);
     cg.setBuilder(builder);
 
-    for (auto samePrefixEntries : entriesGrpedByPrefix) {
-        auto firstEntry = samePrefixEntries.front();
+    for (auto samePrefixEntries : entriesGroupedByMask) {
+        auto firstEntry = samePrefixEntries.front().entry;
         cstring keyFieldName = program->refMap->newName("key_mask");
         keyMasksNames.push_back(keyFieldName);
 
@@ -914,12 +913,12 @@ void EBPFTablePSA::emitValueMask(CodeBuilder* builder, const cstring valueMask,
 
 /**
  * This method groups entries with the same prefix into separate lists.
- * For example four entries which have two different prefixes
- * will give as a result a vector of two vectors (each with two entries).
+ * For example four entries which have two different masks
+ * will give as a result a list of two list (each with two entries).
  * @return a vector of vectors with const entries that have the same prefix
  */
-std::vector<std::vector<const IR::Entry*>> EBPFTablePSA::getConstEntriesGroupedByMask() {
-    std::vector<std::vector<const IR::Entry*>> result;
+EBPFTablePSA::EntriesGroupedByMask_t EBPFTablePSA::getConstEntriesGroupedByMask() {
+    EntriesGroupedByMask_t result;
     const IR::EntriesList* entries = table->container->getEntries();
 
     if (!entries)
@@ -928,16 +927,22 @@ std::vector<std::vector<const IR::Entry*>> EBPFTablePSA::getConstEntriesGroupedB
     // Group entries by the same mask, container will do deduplication for us. The order of
     // entries will be changed but this is not a problem because of priority. Ebpf algorithm use
     // TSS, so every mask have to be tested and there is no strict requirements on masks order.
+    // Priority of entries is equal to P4 program order (first defined has the highest priority).
     EBPFTablePSATernaryTableMaskGenerator maskGenerator(program->refMap, program->typeMap);
-    std::unordered_map<cstring, std::vector<const IR::Entry*>> entriesGroupedByMask;
+    std::unordered_map<cstring, std::vector<ConstTernaryEntryDesc>> entriesGroupedByMask;
+    unsigned priority = entries->entries.size() + 1;
     for (auto entry : entries->entries) {
         cstring mask = maskGenerator.getMaskStr(entry);
-        entriesGroupedByMask[mask].push_back(entry);
+        ConstTernaryEntryDesc desc = {
+                .entry = entry,
+                .priority = priority--,
+        };
+        entriesGroupedByMask[mask].emplace_back(desc);
     }
 
     // build results
     for (auto & vec : entriesGroupedByMask) {
-        result.push_back(vec.second);
+        result.emplace_back(std::move(vec.second));
     }
     return result;
 }

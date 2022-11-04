@@ -28,7 +28,13 @@ class EBPFTableImplementationPSA;
 
 class EBPFTablePSA : public EBPFTable {
  private:
-    std::vector<std::vector<const IR::Entry*>> getConstEntriesGroupedByMask();
+    struct ConstTernaryEntryDesc {
+        const IR::Entry *entry;
+        unsigned priority;
+    };
+    typedef std::vector<ConstTernaryEntryDesc> EntriesGroup_t;
+    typedef std::vector<EntriesGroup_t> EntriesGroupedByMask_t;
+    EntriesGroupedByMask_t getConstEntriesGroupedByMask();
     bool hasConstEntries();
     const cstring addPrefixFunctionName = "add_prefix_and_entries";
     const cstring tuplesMapName = instanceName + "_tuples_map";
@@ -51,10 +57,10 @@ class EBPFTablePSA : public EBPFTable {
     void emitValueMask(CodeBuilder *builder, cstring valueMask,
                        cstring nextMask, int tupleId) const;
     void emitKeyMasks(CodeBuilder *builder,
-                      std::vector<std::vector<const IR::Entry *>> &entriesGrpedByPrefix,
+                      EntriesGroupedByMask_t &entriesGroupedByMask,
                       std::vector<cstring> &keyMasksNames);
     void emitKeysAndValues(CodeBuilder *builder,
-                           std::vector<const IR::Entry *> &samePrefixEntries,
+                           EntriesGroup_t &sameMaskEntries,
                            std::vector<cstring> &keyNames,
                            std::vector<cstring> &valueNames);
 
