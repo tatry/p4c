@@ -340,52 +340,87 @@ void InternetChecksumAlgorithm::updateChecksum(CodeBuilder* builder, const Argum
         bitsToRead = width;
 
         if (width > 64) {
-            BUG("Fields wider than 64 bits are not supported yet", field);
-        }
+            if (remainingBits != 16) {
+                ::error(ErrorType::ERR_UNSUPPORTED,
+                        "%1%: field wider than 64 bits must be aligned to 16 bits in input data",
+                        field);
+                continue;
+            }
+            if (width % 16 != 0) {
+                ::error(ErrorType::ERR_UNSUPPORTED,
+                        "%1%: field wider than 64 bits must have size in bits multiply of 16 bits",
+                        field);
+                continue;
+            }
 
-        while (bitsToRead > 0) {
-            if (remainingBits == 16) {
+            // Let's convert internal array into an array of u16 and calc csum for such entries.
+            // Byte order conversion is required, because scum is calculated in host byte order
+            // but data is preserved in network byte order
+            const unsigned arrayEntries = width / 16;
+            for (unsigned i = 0; i < arrayEntries; ++i) {
                 builder->emitIndent();
-                builder->appendFormat("%s = ", tmpVar.c_str());
-            } else {
-                builder->append(" | ");
-            }
-
-            // TODO: add masks for fields, however they should not exceed declared width
-            if (bitsToRead < remainingBits) {
-                remainingBits -= bitsToRead;
-                builder->append("(");
+                builder->appendFormat("%s = htons(((u16 *)(", tmpVar.c_str());
                 visitor->visit(field);
-                builder->appendFormat(" << %d)", remainingBits);
-                bitsToRead = 0;
-            } else if (bitsToRead == remainingBits) {
-                remainingBits = 0;
-                visitor->visit(field);
-                bitsToRead = 0;
-            } else if (bitsToRead > remainingBits) {
-                bitsToRead -= remainingBits;
-                remainingBits = 0;
-                builder->append("(");
-                visitor->visit(field);
-                builder->appendFormat(" >> %d)", bitsToRead);
-            }
-
-            if (remainingBits == 0) {
-                remainingBits = 16;
+                builder->appendFormat("))[%u])", i);
                 builder->endOfStatement(true);
 
                 // update checksum
                 builder->target->emitTraceMessage(builder, "InternetChecksum: word=0x%llx", 1,
                                                   tmpVar.c_str());
                 builder->emitIndent();
+                builder->appendFormat("%s = ", stateVar.c_str());
                 if (addData) {
-                    builder->appendFormat("%s = csum16_add(%s, %s)", stateVar.c_str(),
-                                          stateVar.c_str(), tmpVar.c_str());
+                    builder->appendFormat("csum16_add(%s, %s)", stateVar.c_str(), tmpVar.c_str());
                 } else {
-                    builder->appendFormat("%s = csum16_sub(%s, %s)", stateVar.c_str(),
-                                          stateVar.c_str(), tmpVar.c_str());
+                    builder->appendFormat("csum16_sub(%s, %s)", stateVar.c_str(), tmpVar.c_str());
                 }
                 builder->endOfStatement(true);
+            }
+        } else {  // fields smaller or equal than 64 bits
+            while (bitsToRead > 0) {
+                if (remainingBits == 16) {
+                    builder->emitIndent();
+                    builder->appendFormat("%s = ", tmpVar.c_str());
+                } else {
+                    builder->append(" | ");
+                }
+
+                // TODO: add masks for fields, however they should not exceed declared width
+                if (bitsToRead < remainingBits) {
+                    remainingBits -= bitsToRead;
+                    builder->append("(");
+                    visitor->visit(field);
+                    builder->appendFormat(" << %d)", remainingBits);
+                    bitsToRead = 0;
+                } else if (bitsToRead == remainingBits) {
+                    remainingBits = 0;
+                    visitor->visit(field);
+                    bitsToRead = 0;
+                } else if (bitsToRead > remainingBits) {
+                    bitsToRead -= remainingBits;
+                    remainingBits = 0;
+                    builder->append("(");
+                    visitor->visit(field);
+                    builder->appendFormat(" >> %d)", bitsToRead);
+                }
+
+                if (remainingBits == 0) {
+                    remainingBits = 16;
+                    builder->endOfStatement(true);
+
+                    // update checksum
+                    builder->target->emitTraceMessage(builder, "InternetChecksum: word=0x%llx",
+                                                      1, tmpVar.c_str());
+                    builder->emitIndent();
+                    if (addData) {
+                        builder->appendFormat("%s = csum16_add(%s, %s)", stateVar.c_str(),
+                                              stateVar.c_str(), tmpVar.c_str());
+                    } else {
+                        builder->appendFormat("%s = csum16_sub(%s, %s)", stateVar.c_str(),
+                                              stateVar.c_str(), tmpVar.c_str());
+                    }
+                    builder->endOfStatement(true);
+                }
             }
         }
     }
