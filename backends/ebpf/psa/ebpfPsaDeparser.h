@@ -41,9 +41,9 @@ class EBPFDeparserPSA : public EBPFDeparser {
     int maxDigestQueueSize = 128;
 
  public:
-    const IR::Parameter* user_metadata;
+    const IR::Parameter* user_metadata = nullptr;
     const IR::Parameter* istd;
-    const IR::Parameter* resubmit_meta;
+    const IR::Parameter* resubmit_meta = nullptr;
     std::map<cstring, EBPFChecksumPSA*> checksums;
     std::map<cstring, const IR::Type*> digests;
 

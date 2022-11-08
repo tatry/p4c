@@ -590,7 +590,7 @@ class ConstEntryTernaryPSATest(P4EbpfTest):
         testutils.verify_packet(self, pkt, PORT1)
 
 
-class LongFieldSupport(P4EbpfTest):
+class LongFieldTableAction(P4EbpfTest):
     """
     Test support for fields larger than 64 bits using IPv6 protocol.
     """
@@ -631,3 +631,23 @@ class LongFieldSupport(P4EbpfTest):
             exp_pkt[IPv6].hlim = exp_pkt[IPv6].hlim - t.get("no_table_matches", 2)
             testutils.send_packet(self, PORT0, pkt)
             testutils.verify_packet_any_port(self, exp_pkt, PTF_PORTS)
+
+
+class LongFieldExterns(P4EbpfTest):
+    """
+    Test support for fields larger than 64 bits using IPv6 protocol.
+    """
+    p4_file_path = "p4testdata/long-field-externs.p4"
+
+    def runTest(self):
+        pkt = testutils.simple_ipv6ip_packet(ipv6_src="::2", ipv6_dst="::1", ipv6_hlim=64)
+        exp_pkt = pkt.copy()
+        testutils.send_packet(self, PORT0, pkt)
+        testutils.verify_packet_any_port(self, exp_pkt, PTF_PORTS)
+
+        digests = self.digest_get("IngressDeparserImpl_d")
+        if len(digests) != 1:
+            self.fail("Expected 1 digest messages, got {}".format(len(digests)))
+        for d in digests:
+            if int(d["srcAddr"], 0) != 2 or int(d["info"], 0) != 1023:
+                self.fail("Digest map stored wrong values: addr->{}, info->{}".format(d["srcAddr"], d["info"]))

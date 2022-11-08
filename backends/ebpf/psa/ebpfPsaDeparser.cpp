@@ -50,6 +50,7 @@ void DeparserBodyTranslatorPSA::processMethod(const P4::ExternMethod* method) {
         auto di = obj->to<IR::Declaration_Instance>();
         cstring digestMapName = EBPFObject::externalName(di);
         auto arg = method->expr->arguments->front();
+        // todo: use temporary object
         builder->appendFormat("bpf_map_push_elem(&%s, &", digestMapName);
         this->visit(arg);
         builder->appendFormat(", BPF_EXIST)");
