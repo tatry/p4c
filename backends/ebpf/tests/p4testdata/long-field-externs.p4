@@ -76,6 +76,7 @@ control IngressDeparserImpl(packet_out packet,
 {
     Digest<digest_t>() d;
     apply {
+        //digest_t tmp = { hdr.ipv6.srcAddr, 1023 };
         d.pack({ hdr.ipv6.srcAddr, 1023 });
 
         packet.emit(hdr.ethernet);
