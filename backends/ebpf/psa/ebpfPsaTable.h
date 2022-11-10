@@ -35,6 +35,11 @@ class EBPFTablePSA : public EBPFTable {
     const cstring tuplesMapName = instanceName + "_tuples_map";
     const cstring prefixesMapName = instanceName + "_prefixes";
 
+    bool tableCacheEnabled = false;
+    cstring cacheValueTypeName;
+    cstring cacheTableName;
+    void tryEnableTableCache();
+
  protected:
     ActionTranslationVisitor* createActionTranslationVisitor(
         cstring valueName, const EBPFProgram* program) const override;
@@ -80,6 +85,12 @@ class EBPFTablePSA : public EBPFTable {
                            cstring actionRunVariable) override;
     bool dropOnNoMatchingEntryFound() const override;
     static cstring addPrefixFunc(bool trace);
+
+    void emitCacheTypes(CodeBuilder* builder);
+    void emitCacheInstance(CodeBuilder* builder);
+    void emitCacheLookup(CodeBuilder* builder, cstring key, cstring value) override;
+    void emitCacheUpdate(CodeBuilder* builder, cstring key, cstring value) override;
+    bool cacheEnabled() override { return tableCacheEnabled; }
 
     EBPFCounterPSA* getDirectCounter(cstring name) const {
         auto result = std::find_if(counters.begin(), counters.end(),
