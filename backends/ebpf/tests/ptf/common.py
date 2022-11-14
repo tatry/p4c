@@ -96,6 +96,13 @@ class P4EbpfTest(BaseTest):
             self.switch_ns = testutils.test_param_get("namespace")
         self.interfaces = testutils.test_param_get("interfaces").split(",")
 
+        # force rebuild *.o file if compiler option has been hanged for the same P4 file
+        try:
+            os.remove(os.path.join("ptf_out", filename + ".c"))
+            os.remove(self.test_prog_image)
+        except OSError:
+            pass
+
         # fetch data plane ports from network namespace
         global DP_PORTS
         next_idx = 0
