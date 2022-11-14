@@ -114,7 +114,7 @@ class P4EbpfTest(BaseTest):
         if "xdp2tc" in testutils.test_params_get():
             p4args += " --xdp2tc=" + self.xdp2tc_mode()
 
-        p4args = p4args + " " + self.p4_additional_args
+        p4args = p4args + " " + self.p4c_additional_args
 
         logger.info("P4ARGS=" + p4args)
         self.exec_cmd("make -f ../runtime/kernel.mk BPFOBJ={output} P4FILE={p4file} "

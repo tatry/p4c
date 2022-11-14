@@ -35,11 +35,6 @@ class EBPFTablePSA : public EBPFTable {
     const cstring tuplesMapName = instanceName + "_tuples_map";
     const cstring prefixesMapName = instanceName + "_prefixes";
 
-    bool tableCacheEnabled = false;
-    cstring cacheValueTypeName;
-    cstring cacheTableName;
-    void tryEnableTableCache();
-
  protected:
     ActionTranslationVisitor* createActionTranslationVisitor(
         cstring valueName, const EBPFProgram* program) const override;
@@ -47,6 +42,13 @@ class EBPFTablePSA : public EBPFTable {
     void initDirectCounters();
     void initDirectMeters();
     void initImplementation();
+
+    bool tableCacheEnabled = false;
+    cstring cacheValueTypeName;
+    cstring cacheTableName;
+    cstring cacheKeyTypeName;
+    void tryEnableTableCache();
+    void createCacheTypeNames(bool isCacheKeyType, bool isCacheValueType);
 
     void emitTableValue(CodeBuilder* builder, const IR::MethodCallExpression* actionMce,
                         cstring valueName);
@@ -86,7 +88,7 @@ class EBPFTablePSA : public EBPFTable {
     bool dropOnNoMatchingEntryFound() const override;
     static cstring addPrefixFunc(bool trace);
 
-    void emitCacheTypes(CodeBuilder* builder);
+    virtual void emitCacheTypes(CodeBuilder* builder);
     void emitCacheInstance(CodeBuilder* builder);
     void emitCacheLookup(CodeBuilder* builder, cstring key, cstring value) override;
     void emitCacheUpdate(CodeBuilder* builder, cstring key, cstring value) override;

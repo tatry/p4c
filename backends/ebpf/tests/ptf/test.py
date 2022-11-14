@@ -656,9 +656,9 @@ class LPMTableCachePSATest(P4EbpfTest):
     p4c_additional_args = "--table-caching"
 
     def runTest(self):
+        # TODO: make this additional entry working
         # self.table_add(table="ingress_tbl_lpm", key=["00:11:22:33:44:50/44"], action=1, data=["11:22:33:44:55:67"])
         self.table_add(table="ingress_tbl_lpm", key=["00:11:22:33:44:55/48"], action=1, data=["11:22:33:44:55:66"])
-        # logger.info(self.table_get(table="ingress_tbl_lpm"))
         pkt = testutils.simple_ip_packet(eth_dst="00:11:22:33:44:50")
         exp_pkt = testutils.simple_ip_packet(eth_dst="11:22:33:44:55:66")
         exp_pkt[Ether].type = 0x8601

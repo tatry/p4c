@@ -916,8 +916,19 @@ void EBPFTablePSA::tryEnableTableCache() {
     }
 
     tableCacheEnabled = true;
-    cacheValueTypeName = valueTypeName + "_cache";
+    createCacheTypeNames(false, true);
+}
+
+void EBPFTablePSA::createCacheTypeNames(bool isCacheKeyType, bool isCacheValueType) {
     cacheTableName = instanceName + "_cache";
+
+    cacheKeyTypeName = keyTypeName;
+    if (isCacheKeyType)
+        cacheKeyTypeName = keyTypeName + "_cache";
+
+    cacheValueTypeName = valueTypeName;
+    if (isCacheValueType)
+        cacheValueTypeName = valueTypeName + "_cache";
 }
 
 void EBPFTablePSA::emitCacheTypes(CodeBuilder* builder) {
@@ -950,7 +961,7 @@ void EBPFTablePSA::emitCacheInstance(CodeBuilder* builder) {
     // TODO: make cache size calculation more smart. Consider using annotation or compiler option.
     size_t cacheSize = std::max((size_t) 1, size / 2);
     builder->target->emitTableDecl(builder, cacheTableName, TableHashLRU,
-                                   "struct " + keyTypeName, "struct " + cacheValueTypeName,
+                                   "struct " + cacheKeyTypeName, "struct " + cacheValueTypeName,
                                    cacheSize);
 }
 
