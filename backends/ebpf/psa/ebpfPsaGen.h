@@ -64,8 +64,11 @@ class PSAEbpfGenerator {
     void emitInitializer(CodeBuilder* builder) const;
     virtual void emitInitializerSection(CodeBuilder* builder) const = 0;
     void emitHelperFunctions(CodeBuilder* builder) const;
+
+    // TODO: move them to the externs/ebpfPsaHashAlgorithm.cpp file
     void emitCRC32LookupTableTypes(CodeBuilder* builder) const;
     void emitCRC32LookupTableInitializer(CodeBuilder* builder) const;
+    void emitCRC32LookupTableInstance(CodeBuilder* builder) const;
 };
 
 class PSAArchTC : public PSAEbpfGenerator {
@@ -80,7 +83,6 @@ class PSAArchTC : public PSAEbpfGenerator {
 
     void emitInstances(CodeBuilder* builder) const override;
     void emitInitializerSection(CodeBuilder* builder) const override;
-    void emitCRC32LookupTableInstance(CodeBuilder* builder) const;
 };
 
 class PSAArchXDP : public PSAEbpfGenerator {
