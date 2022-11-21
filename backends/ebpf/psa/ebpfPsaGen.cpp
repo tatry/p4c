@@ -378,46 +378,46 @@ void PSAEbpfGenerator::emitCRC32LookupTableInitializer(CodeBuilder* builder) con
     builder->appendFormat("for (u16 i = 0; i <= 255; i++)");
     builder->blockStart();
     builder->emitIndent();
-    builder->appendFormat("%s->table[256+i] = "
-                          "(%s->table[0+i] >> 8) ^ %s->table[(%s->table[0+i] & 0xFF)]",
-                          valueName.c_str(), valueName.c_str(), valueName.c_str(),
-                          valueName.c_str());
+    builder->appendFormat(
+        "%s->table[256+i] = "
+        "(%s->table[0+i] >> 8) ^ %s->table[(%s->table[0+i] & 0xFF)]",
+        valueName.c_str(), valueName.c_str(), valueName.c_str(), valueName.c_str());
     builder->endOfStatement(true);
     builder->emitIndent();
-    builder->appendFormat("%s->table[512+i] = "
-                          "(%s->table[256+i] >> 8) ^ %s->table[(%s->table[256+i] & 0xFF)]",
-                          valueName.c_str(), valueName.c_str(), valueName.c_str(),
-                          valueName.c_str());
+    builder->appendFormat(
+        "%s->table[512+i] = "
+        "(%s->table[256+i] >> 8) ^ %s->table[(%s->table[256+i] & 0xFF)]",
+        valueName.c_str(), valueName.c_str(), valueName.c_str(), valueName.c_str());
     builder->endOfStatement(true);
     builder->emitIndent();
-    builder->appendFormat("%s->table[768+i] = "
-                          "(%s->table[512+i] >> 8) ^ %s->table[(%s->table[512+i] & 0xFF)]",
-                          valueName.c_str(), valueName.c_str(), valueName.c_str(),
-                          valueName.c_str());
+    builder->appendFormat(
+        "%s->table[768+i] = "
+        "(%s->table[512+i] >> 8) ^ %s->table[(%s->table[512+i] & 0xFF)]",
+        valueName.c_str(), valueName.c_str(), valueName.c_str(), valueName.c_str());
     builder->endOfStatement(true);
     builder->emitIndent();
-    builder->appendFormat("%s->table[1024+i] = "
-                          "(%s->table[768+i] >> 8) ^ %s->table[(%s->table[768+i] & 0xFF)]",
-                          valueName.c_str(), valueName.c_str(), valueName.c_str(),
-                          valueName.c_str());
+    builder->appendFormat(
+        "%s->table[1024+i] = "
+        "(%s->table[768+i] >> 8) ^ %s->table[(%s->table[768+i] & 0xFF)]",
+        valueName.c_str(), valueName.c_str(), valueName.c_str(), valueName.c_str());
     builder->endOfStatement(true);
     builder->emitIndent();
-    builder->appendFormat("%s->table[1280+i] = "
-                          "(%s->table[1024+i] >> 8) ^ %s->table[(%s->table[1024+i] & 0xFF)]",
-                          valueName.c_str(), valueName.c_str(), valueName.c_str(),
-                          valueName.c_str());
+    builder->appendFormat(
+        "%s->table[1280+i] = "
+        "(%s->table[1024+i] >> 8) ^ %s->table[(%s->table[1024+i] & 0xFF)]",
+        valueName.c_str(), valueName.c_str(), valueName.c_str(), valueName.c_str());
     builder->endOfStatement(true);
     builder->emitIndent();
-    builder->appendFormat("%s->table[1536+i] = "
-                          "(%s->table[1280+i] >> 8) ^ %s->table[(%s->table[1280+i] & 0xFF)]",
-                          valueName.c_str(), valueName.c_str(), valueName.c_str(),
-                          valueName.c_str());
+    builder->appendFormat(
+        "%s->table[1536+i] = "
+        "(%s->table[1280+i] >> 8) ^ %s->table[(%s->table[1280+i] & 0xFF)]",
+        valueName.c_str(), valueName.c_str(), valueName.c_str(), valueName.c_str());
     builder->endOfStatement(true);
     builder->emitIndent();
-    builder->appendFormat("%s->table[1792+i] = "
-                          "(%s->table[1536+i] >> 8) ^ %s->table[(%s->table[1536+i] & 0xFF)]",
-                          valueName.c_str(), valueName.c_str(), valueName.c_str(),
-                          valueName.c_str());
+    builder->appendFormat(
+        "%s->table[1792+i] = "
+        "(%s->table[1536+i] >> 8) ^ %s->table[(%s->table[1536+i] & 0xFF)]",
+        valueName.c_str(), valueName.c_str(), valueName.c_str(), valueName.c_str());
     builder->endOfStatement(true);
     builder->blockEnd(true);
     builder->blockEnd(true);
@@ -517,7 +517,7 @@ void PSAArchTC::emitInitializerSection(CodeBuilder* builder) const {
 }
 
 // =====================PSAArchXDP=============================
-void PSAArchXDP::emit(CodeBuilder *builder) const {
+void PSAArchXDP::emit(CodeBuilder* builder) const {
     builder->target->emitIncludes(builder);
     emitPSAIncludes(builder);
 
@@ -559,7 +559,7 @@ void PSAArchXDP::emitPreamble(CodeBuilder* builder) const {
     builder->newline();
 }
 
-void PSAArchXDP::emitInstances(CodeBuilder *builder) const {
+void PSAArchXDP::emitInstances(CodeBuilder* builder) const {
     builder->newline();
 
     builder->appendLine("REGISTER_START()");
@@ -569,11 +569,11 @@ void PSAArchXDP::emitInstances(CodeBuilder *builder) const {
     tcEgressForXDP->control->tables.insert(egress->control->tables.begin(),
                                            egress->control->tables.end());
 
-    builder->target->emitTableDecl(builder, "xdp2tc_shared_map", TablePerCPUArray,
-                                   "u32", "struct xdp2tc_metadata", 1);
+    builder->target->emitTableDecl(builder, "xdp2tc_shared_map", TablePerCPUArray, "u32",
+                                   "struct xdp2tc_metadata", 1);
 
-    builder->target->emitTableDecl(builder, "tx_port", TableDevmap,
-                                   "u32", "struct bpf_devmap_val", egressDevmapSize);
+    builder->target->emitTableDecl(builder, "tx_port", TableDevmap, "u32", "struct bpf_devmap_val",
+                                   egressDevmapSize);
 
     emitCRC32LookupTableInstance(builder);
 
@@ -581,22 +581,23 @@ void PSAArchXDP::emitInstances(CodeBuilder *builder) const {
     builder->newline();
 }
 
-void PSAArchXDP::emitInitializerSection(CodeBuilder *builder) const {
+void PSAArchXDP::emitInitializerSection(CodeBuilder* builder) const {
     builder->appendLine("SEC(\"xdp/map-initializer\")");
 }
 
-void PSAArchXDP::emitXDP2TCInternalStructures(CodeBuilder *builder) const {
-    builder->appendFormat("struct xdp2tc_metadata {\n"
-                          "    struct %s headers;\n"
-                          "    struct psa_ingress_output_metadata_t ostd;\n"
-                          "    __u32 packetOffsetInBits;\n"
-                          "    __u16 pkt_ether_type;\n"
-                          "} __attribute__((aligned(4)));",
-                          tcIngressForXDP->parser->headerType->to<EBPFStructType>()->name);
+void PSAArchXDP::emitXDP2TCInternalStructures(CodeBuilder* builder) const {
+    builder->appendFormat(
+        "struct xdp2tc_metadata {\n"
+        "    struct %s headers;\n"
+        "    struct psa_ingress_output_metadata_t ostd;\n"
+        "    __u32 packetOffsetInBits;\n"
+        "    __u16 pkt_ether_type;\n"
+        "} __attribute__((aligned(4)));",
+        tcIngressForXDP->parser->headerType->to<EBPFStructType>()->name);
     builder->newline();
 }
 
-void PSAArchXDP::emitDummyProgram(CodeBuilder *builder) const {
+void PSAArchXDP::emitDummyProgram(CodeBuilder* builder) const {
     // this is static program, so we can just paste a piece of code.
     builder->appendLine("SEC(\"xdp_redirect_dummy_sec\")");
     builder->append("int xdp_redirect_dummy(struct xdp_md *skb)");
@@ -658,73 +659,61 @@ const PSAEbpfGenerator* ConvertToEbpfPSA::build(const IR::ToplevelBlock* tlb) {
     if (!options.generateToXDP) {
         auto xdp = new XDPHelpProgram(options);
 
-        auto ingress_pipeline_converter =
-            new ConvertToEbpfPipeline("tc-ingress", TC_INGRESS, options,
-                ingressParser->to<IR::ParserBlock>(),
-                ingressControl->to<IR::ControlBlock>(),
-                ingressDeparser->to<IR::ControlBlock>(),
-                refmap, typemap);
+        auto ingress_pipeline_converter = new ConvertToEbpfPipeline(
+            "tc-ingress", TC_INGRESS, options, ingressParser->to<IR::ParserBlock>(),
+            ingressControl->to<IR::ControlBlock>(), ingressDeparser->to<IR::ControlBlock>(), refmap,
+            typemap);
         ingress->apply(*ingress_pipeline_converter);
         tlb->getProgram()->apply(*ingress_pipeline_converter);
         auto tcIngress = ingress_pipeline_converter->getEbpfPipeline();
 
-        auto egress_pipeline_converter =
-            new ConvertToEbpfPipeline("tc-egress", TC_EGRESS, options,
-                egressParser->to<IR::ParserBlock>(),
-                egressControl->to<IR::ControlBlock>(),
-                egressDeparser->to<IR::ControlBlock>(),
-                refmap, typemap);
+        auto egress_pipeline_converter = new ConvertToEbpfPipeline(
+            "tc-egress", TC_EGRESS, options, egressParser->to<IR::ParserBlock>(),
+            egressControl->to<IR::ControlBlock>(), egressDeparser->to<IR::ControlBlock>(), refmap,
+            typemap);
         egress->apply(*egress_pipeline_converter);
         tlb->getProgram()->apply(*egress_pipeline_converter);
         auto tcEgress = egress_pipeline_converter->getEbpfPipeline();
 
         return new PSAArchTC(options, ebpfTypes, xdp, tcIngress, tcEgress);
     } else {
-        auto ingress_pipeline_converter =
-            new ConvertToEbpfPipeline("xdp-ingress", XDP_INGRESS, options,
-                ingressParser->to<IR::ParserBlock>(),
-                ingressControl->to<IR::ControlBlock>(),
-                ingressDeparser->to<IR::ControlBlock>(),
-                refmap, typemap);
+        auto ingress_pipeline_converter = new ConvertToEbpfPipeline(
+            "xdp-ingress", XDP_INGRESS, options, ingressParser->to<IR::ParserBlock>(),
+            ingressControl->to<IR::ControlBlock>(), ingressDeparser->to<IR::ControlBlock>(), refmap,
+            typemap);
         ingress->apply(*ingress_pipeline_converter);
         tlb->getProgram()->apply(*ingress_pipeline_converter);
         auto xdpIngress = ingress_pipeline_converter->getEbpfPipeline();
         BUG_CHECK(xdpIngress != nullptr, "Cannot create xdpIngress block.");
 
-        auto egress_pipeline_converter =
-            new ConvertToEbpfPipeline("xdp-egress", XDP_EGRESS, options,
-                egressParser->to<IR::ParserBlock>(),
-                egressControl->to<IR::ControlBlock>(),
-                egressDeparser->to<IR::ControlBlock>(),
-                refmap, typemap);
+        auto egress_pipeline_converter = new ConvertToEbpfPipeline(
+            "xdp-egress", XDP_EGRESS, options, egressParser->to<IR::ParserBlock>(),
+            egressControl->to<IR::ControlBlock>(), egressDeparser->to<IR::ControlBlock>(), refmap,
+            typemap);
         egress->apply(*egress_pipeline_converter);
         tlb->getProgram()->apply(*egress_pipeline_converter);
         auto xdpEgress = egress_pipeline_converter->getEbpfPipeline();
         BUG_CHECK(xdpEgress != nullptr, "Cannot create xdpEgress block.");
 
-        auto tc_trafficmanager_converter =
-            new ConvertToEbpfPipeline("tc-ingress", TC_TRAFFIC_MANAGER, options,
-                ingressParser->to<IR::ParserBlock>(),
-                ingressControl->to<IR::ControlBlock>(),
-                ingressDeparser->to<IR::ControlBlock>(),
-                refmap, typemap);
+        auto tc_trafficmanager_converter = new ConvertToEbpfPipeline(
+            "tc-ingress", TC_TRAFFIC_MANAGER, options, ingressParser->to<IR::ParserBlock>(),
+            ingressControl->to<IR::ControlBlock>(), ingressDeparser->to<IR::ControlBlock>(), refmap,
+            typemap);
         ingress->apply(*tc_trafficmanager_converter);
         auto tcTrafficManager = tc_trafficmanager_converter->getEbpfPipeline();
         BUG_CHECK(tcTrafficManager != nullptr, "Cannot create tcTrafficManager block.");
 
-        auto tc_egress_pipeline_converter =
-            new ConvertToEbpfPipeline("tc-egress", TC_EGRESS, options,
-                egressParser->to<IR::ParserBlock>(),
-                egressControl->to<IR::ControlBlock>(),
-                egressDeparser->to<IR::ControlBlock>(),
-                refmap, typemap);
+        auto tc_egress_pipeline_converter = new ConvertToEbpfPipeline(
+            "tc-egress", TC_EGRESS, options, egressParser->to<IR::ParserBlock>(),
+            egressControl->to<IR::ControlBlock>(), egressDeparser->to<IR::ControlBlock>(), refmap,
+            typemap);
         egress->apply(*tc_egress_pipeline_converter);
         tlb->getProgram()->apply(*tc_egress_pipeline_converter);
         auto tcEgress = tc_egress_pipeline_converter->getEbpfPipeline();
         BUG_CHECK(tcEgress != nullptr, "Cannot create TC Egress for XDP block.");
 
-        return new PSAArchXDP(options, ebpfTypes,
-                              xdpIngress, xdpEgress, tcTrafficManager, tcEgress);
+        return new PSAArchXDP(options, ebpfTypes, xdpIngress, xdpEgress, tcTrafficManager,
+                              tcEgress);
     }
 }
 

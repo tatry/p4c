@@ -94,7 +94,8 @@ EbpfOptions::EbpfOptions() {
     registerOption(
         "--xdp", nullptr,
         [this](const char*) {
-            generateToXDP = true; return true;
+            generateToXDP = true;
+            return true;
         },
         "[psa only] Compile and generate the P4 prog for XDP hook");
 }

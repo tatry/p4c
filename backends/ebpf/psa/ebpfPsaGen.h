@@ -27,13 +27,7 @@ limitations under the License.
 
 namespace EBPF {
 
-enum pipeline_type {
-    TC_INGRESS,
-    TC_EGRESS,
-    XDP_INGRESS,
-    XDP_EGRESS,
-    TC_TRAFFIC_MANAGER
-};
+enum pipeline_type { TC_INGRESS, TC_EGRESS, XDP_INGRESS, XDP_EGRESS, TC_TRAFFIC_MANAGER };
 
 class PSAEbpfGenerator {
  public:
@@ -93,20 +87,21 @@ class PSAArchXDP : public PSAEbpfGenerator {
     EBPFPipeline* tcEgressForXDP;
     static const unsigned egressDevmapSize = 256;
 
-    PSAArchXDP(const EbpfOptions &options, std::vector<EBPFType*> &ebpfTypes,
-               EBPFPipeline* xdpIngress, EBPFPipeline* xdpEgress,
-               EBPFPipeline* tcTrafficManager, EBPFPipeline* tcEgress) :
-            PSAEbpfGenerator(options, ebpfTypes, xdpIngress, xdpEgress),
-            tcIngressForXDP(tcTrafficManager), tcEgressForXDP(tcEgress) { }
+    PSAArchXDP(const EbpfOptions& options, std::vector<EBPFType*>& ebpfTypes,
+               EBPFPipeline* xdpIngress, EBPFPipeline* xdpEgress, EBPFPipeline* tcTrafficManager,
+               EBPFPipeline* tcEgress)
+        : PSAEbpfGenerator(options, ebpfTypes, xdpIngress, xdpEgress),
+          tcIngressForXDP(tcTrafficManager),
+          tcEgressForXDP(tcEgress) {}
 
     void emit(CodeBuilder* builder) const override;
 
     void emitPreamble(CodeBuilder* builder) const override;
-    void emitInstances(CodeBuilder *builder) const override;
-    void emitInitializerSection(CodeBuilder *builder) const override;
+    void emitInstances(CodeBuilder* builder) const override;
+    void emitInitializerSection(CodeBuilder* builder) const override;
 
-    void emitXDP2TCInternalStructures(CodeBuilder *builder) const;
-    void emitDummyProgram(CodeBuilder *builder) const;
+    void emitXDP2TCInternalStructures(CodeBuilder* builder) const;
+    void emitDummyProgram(CodeBuilder* builder) const;
 };
 
 class ConvertToEbpfPSA : public Transform {

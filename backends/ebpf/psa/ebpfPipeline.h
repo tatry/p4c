@@ -217,23 +217,23 @@ class TCEgressPipeline : public EBPFEgressPipeline {
 class XDPIngressPipeline : public EBPFIngressPipeline {
  public:
     XDPIngressPipeline(cstring name, const EbpfOptions& options, P4::ReferenceMap* refMap,
-                       P4::TypeMap* typeMap) :
-            EBPFIngressPipeline(name, options, refMap, typeMap) {
+                       P4::TypeMap* typeMap)
+        : EBPFIngressPipeline(name, options, refMap, typeMap) {
         sectionName = "xdp_ingress/" + name;
         ifindexVar = cstring("skb->ingress_ifindex");
         packetPathVar = cstring(compilerGlobalMetadata + "->packet_path");
         progTarget = new XdpTarget(options.emitTraceMessages);
     }
 
-    void emitGlobalMetadataInitializer(CodeBuilder *builder) override;
-    void emitTrafficManager(CodeBuilder *builder) override;
+    void emitGlobalMetadataInitializer(CodeBuilder* builder) override;
+    void emitTrafficManager(CodeBuilder* builder) override;
 };
 
 class XDPEgressPipeline : public EBPFEgressPipeline {
  public:
     XDPEgressPipeline(cstring name, const EbpfOptions& options, P4::ReferenceMap* refMap,
-                      P4::TypeMap* typeMap):
-            EBPFEgressPipeline(name, options, refMap, typeMap) {
+                      P4::TypeMap* typeMap)
+        : EBPFEgressPipeline(name, options, refMap, typeMap) {
         sectionName = "xdp_devmap/" + name;
         ifindexVar = cstring("skb->egress_ifindex");
         // we do not support packet path, instance & priority in the XDP egress.
@@ -243,22 +243,21 @@ class XDPEgressPipeline : public EBPFEgressPipeline {
         progTarget = new XdpTarget(options.emitTraceMessages);
     }
 
-    void emitGlobalMetadataInitializer(CodeBuilder *builder) override;
-    void emitTrafficManager(CodeBuilder *builder) override;
+    void emitGlobalMetadataInitializer(CodeBuilder* builder) override;
+    void emitTrafficManager(CodeBuilder* builder) override;
 };
 
 class TCTrafficManagerForXDP : public TCIngressPipeline {
  public:
     TCTrafficManagerForXDP(cstring name, const EbpfOptions& options, P4::ReferenceMap* refMap,
-                           P4::TypeMap* typeMap) :
-            TCIngressPipeline(name, options, refMap, typeMap) {
-    }
+                           P4::TypeMap* typeMap)
+        : TCIngressPipeline(name, options, refMap, typeMap) {}
 
-    void emit(CodeBuilder *builder) override;
+    void emit(CodeBuilder* builder) override;
 
  private:
-    void emitReadXDP2TCMetadataFromHead(CodeBuilder *builder);
-    void emitReadXDP2TCMetadataFromCPUMAP(CodeBuilder *builder);
+    void emitReadXDP2TCMetadataFromHead(CodeBuilder* builder);
+    void emitReadXDP2TCMetadataFromCPUMAP(CodeBuilder* builder);
 };
 
 }  // namespace EBPF
