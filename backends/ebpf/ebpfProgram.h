@@ -59,7 +59,7 @@ class EBPFProgram : public EBPFObject {
 
     virtual bool build();  // return 'true' on success
 
-    EBPFProgram(const EbpfOptions &options, const IR::P4Program* program, P4::ReferenceMap* refMap,
+    EBPFProgram(const EbpfOptions& options, const IR::P4Program* program, P4::ReferenceMap* refMap,
                 P4::TypeMap* typeMap, const IR::ToplevelBlock* toplevel)
         : progTarget(nullptr),
           options(options),
