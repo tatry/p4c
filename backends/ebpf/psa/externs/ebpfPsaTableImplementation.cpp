@@ -655,8 +655,7 @@ void EBPFActionSelectorPSA::verifyTableEmptyGroupAction(const EBPFTablePSA* inst
 }
 
 void EBPFActionSelectorPSA::emitCacheTypes(CodeBuilder* builder) {
-    if (!tableCacheEnabled)
-        return;
+    if (!tableCacheEnabled) return;
 
     CodeGenInspector commentGen(program->refMap, program->typeMap);
     commentGen.setBuilder(builder);
@@ -693,8 +692,7 @@ void EBPFActionSelectorPSA::emitCacheTypes(CodeBuilder* builder) {
 }
 
 void EBPFActionSelectorPSA::emitCacheVariables(CodeBuilder* builder) {
-    if (!tableCacheEnabled)
-        return;
+    if (!tableCacheEnabled) return;
 
     cacheKeyVar = program->refMap->newName("key_cache");
     cacheDoUpdateVar = program->refMap->newName("do_update_cache");
@@ -709,12 +707,11 @@ void EBPFActionSelectorPSA::emitCacheVariables(CodeBuilder* builder) {
 }
 
 void EBPFActionSelectorPSA::emitCacheLookup(CodeBuilder* builder, cstring key, cstring value) {
-    if (!tableCacheEnabled)
-        return;
+    if (!tableCacheEnabled) return;
 
     builder->emitIndent();
-    builder->appendFormat("%s.group_ref = %s->%s", cacheKeyVar.c_str(),
-                          key.c_str(), referenceName.c_str());
+    builder->appendFormat("%s.group_ref = %s->%s", cacheKeyVar.c_str(), key.c_str(),
+                          referenceName.c_str());
     builder->endOfStatement(true);
 
     unsigned int fieldNumber = 0;
@@ -774,17 +771,15 @@ void EBPFActionSelectorPSA::emitCacheLookup(CodeBuilder* builder, cstring key, c
 }
 
 void EBPFActionSelectorPSA::emitCacheUpdate(CodeBuilder* builder, cstring key, cstring value) {
-    if (!tableCacheEnabled)
-        return;
+    if (!tableCacheEnabled) return;
 
     builder->emitIndent();
-    builder->appendFormat("if (%s != NULL && %s != 0) ",
-                          value.c_str(), cacheDoUpdateVar.c_str());
+    builder->appendFormat("if (%s != NULL && %s != 0) ", value.c_str(), cacheDoUpdateVar.c_str());
     builder->blockStart();
 
     builder->emitIndent();
-    builder->appendFormat("BPF_MAP_UPDATE_ELEM(%s, &%s, %s, BPF_ANY);",
-                          cacheTableName.c_str(), key.c_str(), value.c_str());
+    builder->appendFormat("BPF_MAP_UPDATE_ELEM(%s, &%s, %s, BPF_ANY);", cacheTableName.c_str(),
+                          key.c_str(), value.c_str());
     builder->newline();
 
     builder->target->emitTraceMessage(builder, "ActionSelector: cache updated");

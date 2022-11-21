@@ -132,10 +132,14 @@ class EBPFTable : public EBPFTableBase {
 
     virtual bool cacheEnabled() { return false; }
     virtual void emitCacheLookup(CodeBuilder* builder, cstring key, cstring value) {
-        (void) builder; (void) key; (void) value;
+        (void)builder;
+        (void)key;
+        (void)value;
     }
     virtual void emitCacheUpdate(CodeBuilder* builder, cstring key, cstring value) {
-        (void) builder; (void) key; (void) value;
+        (void)builder;
+        (void)key;
+        (void)value;
     }
 };
 

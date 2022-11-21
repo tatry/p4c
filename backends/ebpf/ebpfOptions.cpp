@@ -84,8 +84,9 @@ EbpfOptions::EbpfOptions() {
         },
         "[psa only] Select the mode used to pass metadata from XDP to TC "
         "(possible values: meta, head, cpumap).");
-    registerOption("--table-caching", nullptr,
-        [this](const char *) {
+    registerOption(
+        "--table-caching", nullptr,
+        [this](const char*) {
             enableTableCache = true;
             return true;
         },

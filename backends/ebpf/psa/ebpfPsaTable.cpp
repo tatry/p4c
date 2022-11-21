@@ -904,10 +904,8 @@ cstring EBPFTablePSA::addPrefixFunc(bool trace) {
 }
 
 void EBPFTablePSA::tryEnableTableCache() {
-    if (!program->options.enableTableCache)
-        return;
-    if (!isLPMTable() && !isTernaryTable())
-        return;
+    if (!program->options.enableTableCache) return;
+    if (!isLPMTable() && !isTernaryTable()) return;
     if (!counters.empty() || !meters.empty()) {
         ::warning(ErrorType::WARN_UNSUPPORTED,
                   "%1%: table cache can't be enabled due to direct extern(s)",
@@ -923,17 +921,14 @@ void EBPFTablePSA::createCacheTypeNames(bool isCacheKeyType, bool isCacheValueTy
     cacheTableName = instanceName + "_cache";
 
     cacheKeyTypeName = keyTypeName;
-    if (isCacheKeyType)
-        cacheKeyTypeName = keyTypeName + "_cache";
+    if (isCacheKeyType) cacheKeyTypeName = keyTypeName + "_cache";
 
     cacheValueTypeName = valueTypeName;
-    if (isCacheValueType)
-        cacheValueTypeName = valueTypeName + "_cache";
+    if (isCacheValueType) cacheValueTypeName = valueTypeName + "_cache";
 }
 
 void EBPFTablePSA::emitCacheTypes(CodeBuilder* builder) {
-    if (!tableCacheEnabled)
-        return;
+    if (!tableCacheEnabled) return;
 
     builder->emitIndent();
     builder->appendFormat("struct %s ", cacheValueTypeName.c_str());
@@ -955,11 +950,10 @@ void EBPFTablePSA::emitCacheTypes(CodeBuilder* builder) {
 }
 
 void EBPFTablePSA::emitCacheInstance(CodeBuilder* builder) {
-    if (!tableCacheEnabled)
-        return;
+    if (!tableCacheEnabled) return;
 
     // TODO: make cache size calculation more smart. Consider using annotation or compiler option.
-    size_t cacheSize = std::max((size_t) 1, size / 2);
+    size_t cacheSize = std::max((size_t)1, size / 2);
     builder->target->emitTableDecl(builder, cacheTableName, TableHashLRU,
                                    "struct " + cacheKeyTypeName, "struct " + cacheValueTypeName,
                                    cacheSize);
@@ -987,8 +981,7 @@ void EBPFTablePSA::emitCacheLookup(CodeBuilder* builder, cstring key, cstring va
     builder->appendFormat("%s = &(%s->value)", value.c_str(), cacheVal.c_str());
     builder->endOfStatement(true);
     builder->emitIndent();
-    builder->appendFormat("%s = %s->hit",
-                          program->control->hitVariable.c_str(), cacheVal.c_str());
+    builder->appendFormat("%s = %s->hit", program->control->hitVariable.c_str(), cacheVal.c_str());
     builder->endOfStatement(true);
 
     builder->blockEnd(false);
@@ -1013,19 +1006,18 @@ void EBPFTablePSA::emitCacheUpdate(CodeBuilder* builder, cstring key, cstring va
     builder->appendLine("/* update table cache */");
 
     builder->emitIndent();
-    builder->appendFormat("struct %s %s = {0}",
-                          cacheValueTypeName.c_str(), cacheUpdateVarName.c_str());
+    builder->appendFormat("struct %s %s = {0}", cacheValueTypeName.c_str(),
+                          cacheUpdateVarName.c_str());
     builder->endOfStatement(true);
 
     builder->emitIndent();
-    builder->appendFormat("%s.hit = %s",
-                          cacheUpdateVarName.c_str(), program->control->hitVariable.c_str());
+    builder->appendFormat("%s.hit = %s", cacheUpdateVarName.c_str(),
+                          program->control->hitVariable.c_str());
     builder->endOfStatement(true);
 
     builder->emitIndent();
-    builder->appendFormat(
-            "__builtin_memcpy((void *) &(%s.value), (void *) %s, sizeof(struct %s))",
-            cacheUpdateVarName.c_str(), value.c_str(), valueTypeName.c_str());
+    builder->appendFormat("__builtin_memcpy((void *) &(%s.value), (void *) %s, sizeof(struct %s))",
+                          cacheUpdateVarName.c_str(), value.c_str(), valueTypeName.c_str());
     builder->endOfStatement(true);
 
     builder->emitIndent();
