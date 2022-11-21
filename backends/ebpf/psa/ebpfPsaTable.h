@@ -29,7 +29,7 @@ class EBPFTableImplementationPSA;
 class EBPFTablePSA : public EBPFTable {
  private:
     struct ConstTernaryEntryDesc {
-        const IR::Entry *entry;
+        const IR::Entry* entry;
         unsigned priority;
     };
     typedef std::vector<ConstTernaryEntryDesc> EntriesGroup_t;
@@ -49,20 +49,16 @@ class EBPFTablePSA : public EBPFTable {
     void initImplementation();
 
     void emitTableValue(CodeBuilder* builder, const IR::Expression* expr, cstring valueName);
-    void emitDefaultActionInitializer(CodeBuilder *builder);
-    void emitConstEntriesInitializer(CodeBuilder *builder);
-    void emitTernaryConstEntriesInitializer(CodeBuilder *builder);
-    void emitMapUpdateTraceMsg(CodeBuilder *builder, cstring mapName,
-                               cstring returnCode) const;
-    void emitValueMask(CodeBuilder *builder, cstring valueMask,
-                       cstring nextMask, int tupleId) const;
-    void emitKeyMasks(CodeBuilder *builder,
-                      EntriesGroupedByMask_t &entriesGroupedByMask,
-                      std::vector<cstring> &keyMasksNames);
-    void emitKeysAndValues(CodeBuilder *builder,
-                           EntriesGroup_t &sameMaskEntries,
-                           std::vector<cstring> &keyNames,
-                           std::vector<cstring> &valueNames);
+    void emitDefaultActionInitializer(CodeBuilder* builder);
+    void emitConstEntriesInitializer(CodeBuilder* builder);
+    void emitTernaryConstEntriesInitializer(CodeBuilder* builder);
+    void emitMapUpdateTraceMsg(CodeBuilder* builder, cstring mapName, cstring returnCode) const;
+    void emitValueMask(CodeBuilder* builder, cstring valueMask, cstring nextMask,
+                       int tupleId) const;
+    void emitKeyMasks(CodeBuilder* builder, EntriesGroupedByMask_t& entriesGroupedByMask,
+                      std::vector<cstring>& keyMasksNames);
+    void emitKeysAndValues(CodeBuilder* builder, EntriesGroup_t& sameMaskEntries,
+                           std::vector<cstring>& keyNames, std::vector<cstring>& valueNames);
 
     const IR::PathExpression* getActionNameExpression(const IR::Expression* expr) const;
 

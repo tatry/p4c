@@ -241,23 +241,17 @@ void DeparserHdrEmitTranslator::emitField(CodeBuilder* builder, cstring field,
         BUG_CHECK((bitsToWrite > 0) && (bitsToWrite <= 8), "invalid bitsToWrite %d", bitsToWrite);
         builder->emitIndent();
         if (alignment == 0 && bitsToWrite == 8) {  // write whole byte
-            builder->appendFormat(
-                    "write_byte(%s, BYTES(%s) + %d, (%s))",
-                    program->packetStartVar.c_str(),
-                    program->offsetVar.c_str(),
-                    i,  // do not reverse byte order
-                    program->byteVar.c_str());
+            builder->appendFormat("write_byte(%s, BYTES(%s) + %d, (%s))",
+                                  program->packetStartVar.c_str(), program->offsetVar.c_str(),
+                                  i,  // do not reverse byte order
+                                  program->byteVar.c_str());
         } else {  // write partial
             shift = (8 - alignment - bitsToWrite);
-            builder->appendFormat(
-                    "write_partial(%s + BYTES(%s) + %d, %d, %d, (%s >> %d))",
-                    program->packetStartVar.c_str(),
-                    program->offsetVar.c_str(),
-                    i,  // do not reverse byte order
-                    bitsToWrite,
-                    shift,
-                    program->byteVar.c_str(),
-                    widthToEmit > freeBits ? alignment == 0 ? shift : alignment : 0);
+            builder->appendFormat("write_partial(%s + BYTES(%s) + %d, %d, %d, (%s >> %d))",
+                                  program->packetStartVar.c_str(), program->offsetVar.c_str(),
+                                  i,  // do not reverse byte order
+                                  bitsToWrite, shift, program->byteVar.c_str(),
+                                  widthToEmit > freeBits ? alignment == 0 ? shift : alignment : 0);
         }
         builder->endOfStatement(true);
         left -= bitsToWrite;
@@ -267,22 +261,16 @@ void DeparserHdrEmitTranslator::emitField(CodeBuilder* builder, cstring field,
         if (bitsInCurrentByte > 0) {
             builder->emitIndent();
             if (bitsToWrite == 8) {
-                builder->appendFormat(
-                        "write_byte(%s, BYTES(%s) + %d + 1, (%s << %d))",
-                        program->packetStartVar.c_str(),
-                        program->offsetVar.c_str(),
-                        i,  // do not reverse byte order
-                        program->byteVar.c_str(),
-                        8 - alignment % 8);
+                builder->appendFormat("write_byte(%s, BYTES(%s) + %d + 1, (%s << %d))",
+                                      program->packetStartVar.c_str(), program->offsetVar.c_str(),
+                                      i,  // do not reverse byte order
+                                      program->byteVar.c_str(), 8 - alignment % 8);
             } else {
-                builder->appendFormat(
-                        "write_partial(%s + BYTES(%s) + %d + 1, %d, %d, (%s))",
-                        program->packetStartVar.c_str(),
-                        program->offsetVar.c_str(),
-                        i,  // do not reverse byte order
-                        bitsToWrite,
-                        8 + alignment - bitsToWrite,
-                        program->byteVar.c_str());
+                builder->appendFormat("write_partial(%s + BYTES(%s) + %d + 1, %d, %d, (%s))",
+                                      program->packetStartVar.c_str(), program->offsetVar.c_str(),
+                                      i,  // do not reverse byte order
+                                      bitsToWrite, 8 + alignment - bitsToWrite,
+                                      program->byteVar.c_str());
             }
             builder->endOfStatement(true);
             left -= bitsToWrite;

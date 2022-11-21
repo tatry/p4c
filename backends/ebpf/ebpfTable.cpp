@@ -482,8 +482,7 @@ void EBPFTable::emitKey(CodeBuilder* builder, cstring keyName) {
                 // TODO: handle width > 64 bits
                 if (program->options.arch.isNullOrEmpty() || program->options.arch == "filter") {
                     ::error(ErrorType::ERR_UNSUPPORTED,
-                            "%1%: fields wider than 64 bits are not supported yet",
-                            fieldName);
+                            "%1%: fields wider than 64 bits are not supported yet", fieldName);
                 }
             }
         }
@@ -496,8 +495,8 @@ void EBPFTable::emitKey(CodeBuilder* builder, cstring keyName) {
 
         builder->emitIndent();
         if (memcpy) {
-            builder->appendFormat("__builtin_memcpy(&(%s.%s[0]), &(",
-                                  keyName.c_str(), fieldName.c_str());
+            builder->appendFormat("__builtin_memcpy(&(%s.%s[0]), &(", keyName.c_str(),
+                                  fieldName.c_str());
             codeGen->visit(c->expression);
             builder->appendFormat("[0]), %d)", scalar->bytesRequired());
         } else {

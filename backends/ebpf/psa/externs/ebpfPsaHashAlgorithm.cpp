@@ -414,8 +414,8 @@ void InternetChecksumAlgorithm::updateChecksum(CodeBuilder* builder, const Argum
                     builder->endOfStatement(true);
 
                     // update checksum
-                    builder->target->emitTraceMessage(builder, "InternetChecksum: word=0x%llx",
-                                                      1, tmpVar.c_str());
+                    builder->target->emitTraceMessage(builder, "InternetChecksum: word=0x%llx", 1,
+                                                      tmpVar.c_str());
                     builder->emitIndent();
                     if (addData) {
                         builder->appendFormat("%s = csum16_add(%s, %s)", stateVar.c_str(),

@@ -51,12 +51,12 @@ void DeparserBodyTranslatorPSA::processMethod(const P4::ExternMethod* method) {
         cstring digestMapName = EBPFObject::externalName(di);
         auto arg = method->expr->arguments->front();
         // todo: always use temporary object; idea:
-//        tmp_0 =
-//            (struct digest_t) {
-//                    //.srcAddr = parsed_hdr->ipv6.srcAddr,
-//                    .info = 1023
-//            };
-//        memcpy(tmp_0.srcAddr, parsed_hdr->ipv6.srcAddr, 16);
+        //        tmp_0 =
+        //            (struct digest_t) {
+        //                    //.srcAddr = parsed_hdr->ipv6.srcAddr,
+        //                    .info = 1023
+        //            };
+        //        memcpy(tmp_0.srcAddr, parsed_hdr->ipv6.srcAddr, 16);
         builder->appendFormat("bpf_map_push_elem(&%s, &", digestMapName);
         this->visit(arg);
         builder->appendFormat(", BPF_EXIST)");
