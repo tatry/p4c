@@ -51,8 +51,8 @@ void EBPFHashAlgorithmPSA::emitAddData(CodeBuilder* builder, int dataPos,
 
 void CRCChecksumAlgorithm::emitUpdateMethod(CodeBuilder* builder, int crcWidth) {
     // Note that this update method is optimized for our CRC16 and CRC32, custom
-    // version may require other method of update. To deal with byte order data
-    // is read from the end of buffer.
+    // version may require other method of update. When data_size <= 64 bits,
+    // applies host byte order for input data, otherwise network byte order is expected.
     if (crcWidth == 16) {
         cstring code =
             "static __always_inline\n"
@@ -78,7 +78,6 @@ void CRCChecksumAlgorithm::emitUpdateMethod(CodeBuilder* builder, int crcWidth) 
         cstring code =
             "static __always_inline\n"
             "void crc32_update(u32 * reg, const u8 * data, u16 data_size, const u32 poly) {\n"
-            "    data += data_size - 4;\n"
             "    u32* current = (u32*) data;\n"
             "    struct lookup_tbl_val* lookup_table;\n"
             "    u32 index = 0;\n"
@@ -96,10 +95,12 @@ void CRCChecksumAlgorithm::emitUpdateMethod(CodeBuilder* builder, int crcWidth) 
             "    u16 tmp = 0;\n"
             "    if (lookup_table != NULL) {\n"
             "        for (u16 i = data_size; i >= 8; i -= 8) {\n"
-            "            bpf_trace_message(\"CRC32: data byte: %x\", *current);\n"
-            "            u32 one =  __builtin_bswap32(*current--) ^ *reg;\n"
-            "            bpf_trace_message(\"CRC32: data byte: %x\", *current);\n"
-            "            u32 two = __builtin_bswap32(*current--);\n"
+            "            if (data_size == 8) current = data + 4;\n"
+            "            bpf_trace_message(\"CRC32: data dword: %x\\n\", *current);\n"
+            "            u32 one = (data_size == 8 ? __builtin_bswap32(*current--) : *current++) ^ "
+            "*reg;\n"
+            "            bpf_trace_message(\"CRC32: data dword: %x\\n\", *current);\n"
+            "            u32 two = (data_size == 8 ? __builtin_bswap32(*current--) : *current++);\n"
             "            lookup_key = (one & 0x000000FF);\n"
             "            lookup_value8 = lookup_table->table[(u16)(1792 + (u8)lookup_key)];\n"
             "            lookup_key = (one >> 8) & 0x000000FF;\n"
@@ -120,17 +121,32 @@ void CRCChecksumAlgorithm::emitUpdateMethod(CodeBuilder* builder, int crcWidth) 
             "                   lookup_value4 ^ lookup_value3 ^ lookup_value2 ^ lookup_value1;\n"
             "            tmp += 8;\n"
             "        }\n"
-            "        unsigned char *currentChar = (unsigned char *) current;\n"
-            "        currentChar+= 3;\n"
             "        volatile int std_algo_lookup_key = 0;\n"
-            "        for (u16 i = tmp; i < data_size; i++) {\n"
-            "            bpf_trace_message(\"CRC32: data byte: %x\\n\", *current);\n"
-            "            std_algo_lookup_key = (u32)(((*reg) & 0xFF) ^ *currentChar--);\n"
-            "            if (std_algo_lookup_key >= 0) {\n"
-            "                lookup_value = "
+            "        if (data_size < 8) {\n"
+            "            unsigned char *currentChar = (unsigned char *) current;\n"
+            "            currentChar += data_size - 1;\n"
+            "            for (u16 i = tmp; i < data_size; i++) {\n"
+            "                bpf_trace_message(\"CRC32: data byte: %x\\n\", *currentChar);\n"
+            "                std_algo_lookup_key = (u32)(((*reg) & 0xFF) ^ *currentChar--);\n"
+            "                if (std_algo_lookup_key >= 0) {\n"
+            "                    lookup_value = "
             "lookup_table->table[(u8)(std_algo_lookup_key & 255)];\n"
+            "                }\n"
+            "                *reg = ((*reg) >> 8) ^ lookup_value;\n"
             "            }\n"
-            "            *reg = ((*reg) >> 8) ^ lookup_value;\n"
+            "        } else {\n"
+            "            /* Consume data not processed by slice-by-8 algorithm above, "
+            "these data are in network byte order */\n"
+            "            unsigned char *currentChar = (unsigned char *) current;\n"
+            "            for (u16 i = tmp; i < data_size; i++) {\n"
+            "                bpf_trace_message(\"CRC32: data byte: %x\\n\", *currentChar);\n"
+            "                std_algo_lookup_key = (u32)(((*reg) & 0xFF) ^ *currentChar++);\n"
+            "                if (std_algo_lookup_key >= 0) {\n"
+            "                    lookup_value = "
+            "lookup_table->table[(u8)(std_algo_lookup_key & 255)];\n"
+            "                }\n"
+            "                *reg = ((*reg) >> 8) ^ lookup_value;\n"
+            "            }\n"
             "        }\n"
             "    }\n"
             "}";
