@@ -535,114 +535,18 @@ $ bpftool help
 
 Refer to [the bpftool guide](https://manpages.ubuntu.com/manpages/focal/man8/bpftool-prog.8.html) for more examples how to use it.
 
-# Implemented optimizations
+# Performance optimizations
 
 ## Table caching
-In case when lookup into map is expensive (when table has `lpm` or `ternary` key) value for given key might be cached
-in fast exact-match map. For this purpose `BPF_MAP_TYPE_LRU_HASH` map type is used, which shares its implementation
-with hash map (`BPF_MAP_TYPE_HASH`). LRU map has good read performance and lower performance on map update due to
-maintenance process. In other words, this optimization fits into case where value of table key changes infrequently
-between packets.
 
-To enable "Table caching" pass option `--table-caching` to the compiler.
+Table caching optimizes P4 table lookups by adding a cache with all `exact` matches for time-consuming lookups including:
+- table with `ternary` (and/or lpm, exact) key - skip slow TSS algorithm if the key was matched earlier.
+- table with `lpm` (and/or exact) key - skip slow `LPM_TRIE` map (especially when there is many entries) if the key was matched earlier.
+- `ActionSelector` member selection from group - skip slow checksum calculation for `selector` key if it was calculated earlier.
 
-By default, lookup into map is done in the following way:
-```c
-struct table_key_type key = {};
-/* here fill key's fields */
-struct table_value_type *value = NULL;
-value = BPF_MAP_LOOKUP_ELEM(table_map, &key);
-if (value == NULL) {
-    /* miss; find default action */
-    hit = 0;
-    value = BPF_MAP_LOOKUP_ELEM(table_map_defaultAction, &ebpf_zero);
-} else {
-    hit = 1;
-}
-```
-With caching enabled, lookup into map will be done in little modified way:
-```c
-struct table_key_type key = {};
-/* here fill key's fields */
-struct table_value_type *value = NULL;
-struct table_value_type_cache *cached_value = NULL;
-cached_value = BPF_MAP_LOOKUP_ELEM(table_map_cache, &key);
-if (cached_value != NULL) {
-    /* cache hit */
-    value = &(cached_value->value);
-    hit = cached_value->hit;
-} else {
-    /* cache miss, normal lookup into map */
-    value = BPF_MAP_LOOKUP_ELEM(table_map, &key);
-    if (value == NULL) {
-        /* miss; find default action */
-        hit = 0;
-        value = BPF_MAP_LOOKUP_ELEM(table_map_defaultAction, &ebpf_zero);
-    } else {
-        hit = 1;
-    }
-    if (value != NULL) {
-        /* update cache if value has been found */
-        struct table_value_type_cache cache_update = { 0 };
-        cache_update.hit = hit;
-        __builtin_memcpy((void *) &(cache_update->value), (void *) value, sizeof(struct table_value_type));
-        BPF_MAP_UPDATE_ELEM(table_map_cache, &key, &cache_update, BPF_ANY);
-    }
-}
-```
+The fast exact-match map is added in front of each instance of a table that contains a `lpm`, `ternary` or `selector` match key. The table cache is implemented with `BPF_MAP_TYPE_LRU_HASH`, which shares its implementation with the BPF hash map. The LRU map provides a good lookup performance, but lower performance on map updates due to a maintenance process. Thus, this optimization fits into use cases, where a value of table key changes infrequently between packets.
 
-Note that cached table entries are a copy of an original entry. This causes that extern which preserve internal state inside
-table entry (like `DirectMeter` or `DirectCounter`) can't be used with cache due to two existing different states. Compiler
-will not enable table caching for tables containing such direct extern.
-
-When updating table with enabled cache, the cache must be invalidated in order to update to be effective. The simplest way
-to do this is to remove all entries from LRU map, which is done automatically by the NIKSS library.
-
-Similar approach to this is done in `Action Selector` extern when group reference is present. Lookup with cache into
-`Action Selctor` looks like below where cache is used to skip checksum calculation and member selection if possible:
-```c
-struct ingress_as_value * as_value = NULL;  // pointer to an action data
-u32 as_action_ref = value->ingress_as_ref;  // value->ingress_as_ref is entry from table (reference)
-u8 as_group_state = 0;                      // from which map read action data
-struct ingress_as_key_cache key_cache = {0};
-u8 do_update_cache = 0;
-if (value->ingress_as_is_group_ref != 0) {
-    key_cache.group_ref = value->ingress_as_ref; // group reference
-    key_cache.field0 = /* fill selectors value */;
-    as_value = BPF_MAP_LOOKUP_ELEM(ingress_as_cache, &key_cache);
-    if (as_value != NULL) {
-        as_group_state = 2; // cache hit, forbid later lookups into maps
-    } else {
-        do_update_cache = 1; // cache miss, update cache later, below normal lookup
-        void * as_group_map = BPF_MAP_LOOKUP_ELEM(ingress_as_groups, &as_action_ref);  // get group map
-        if (as_group_map != NULL) {
-            u32 * num_of_members = bpf_map_lookup_elem(as_group_map, &ebpf_zero);
-            if (num_of_members != NULL) {
-                if (*num_of_members != 0) {
-                    /* calculate checksum here */
-                    u64 as_checksum_val = /* calculated checksum */;
-                    as_action_ref = /* determine member reference based on checksum */;
-                } else {
-                    as_group_state = 1; // execute default action when group is empty
-                }
-            } else {
-                return TC_ACT_SHOT; // number of members not found
-            }
-        } else {
-            return TC_ACT_SHOT; // group not found
-        }
-    }
-}
-if (as_group_state == 0) {
-    as_value = BPF_MAP_LOOKUP_ELEM(ingress_as_actions, &as_action_ref); // member action data (valid member reference)
-} else if (as_group_state == 1) {
-    as_value = BPF_MAP_LOOKUP_ELEM(ingress_as_defaultActionGroup, &ebpf_zero);  // default group action data
-}
-if (as_value != NULL && do_update_cache != 0) {
-    BPF_MAP_UPDATE_ELEM(ingress_as_cache, &key_cache, as_value, BPF_ANY); // update cache
-}
-```
-
+This optimization may not improve performance in every case, so it must be explicitly enabled by compiler option. To enable table caching pass `--table-caching` to the compiler. 
 # TODO / Limitations
 
 We list the known bugs/limitations below. Refer to the Roadmap section for features planned in the near future.
