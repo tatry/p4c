@@ -200,8 +200,10 @@ void XDPIngressDeparserPSA::emitPreDeparser(CodeBuilder* builder) {
     builder->emitIndent();
     // perform early multicast detection; if multicast is invoked, a packet will be
     // passed up anyway, so we can do deparsing entirely in TC
-    builder->appendFormat("if (%s->clone || %s->multicast_group != 0) ", istd->name.name,
-                          istd->name.name);
+    // In the NTK path follow any replication path
+    builder->appendFormat(
+        "if (%s->clone || %s->multicast_group != 0 || (!%s->drop && %s->egress_port == 0)) ",
+        istd->name.name, istd->name.name, istd->name.name, istd->name.name);
     builder->blockStart();
     builder->emitIndent();
     builder->appendLine("struct xdp2tc_metadata xdp2tc_md = {};");
@@ -238,14 +240,15 @@ void XDPIngressDeparserPSA::emitPreDeparser(CodeBuilder* builder) {
         builder->appendFormat("return %s;", builder->target->abortReturnCode().c_str());
         builder->newline();
         builder->blockEnd(true);
-        builder->emitIndent();
         builder->append(
             "    data = (void *)(long)skb->data;\n"
             "    data_end = (void *)(long)skb->data_end;\n"
             "    if (((char *) data + 14 + sizeof(struct xdp2tc_metadata)) > (char *) data_end) {\n"
             "        return XDP_ABORTED;\n"
             "    }\n");
+        builder->emitIndent();
         builder->appendLine("__builtin_memmove(data, data + sizeof(struct xdp2tc_metadata), 14);");
+        builder->emitIndent();
         builder->appendLine(
             "__builtin_memcpy(data + 14, "
             "&xdp2tc_md, sizeof(struct xdp2tc_metadata));");
@@ -255,7 +258,7 @@ void XDPIngressDeparserPSA::emitPreDeparser(CodeBuilder* builder) {
                                          this->program->zeroKey.c_str(), "xdp2tc_md");
         builder->newline();
     }
-    builder->target->emitTraceMessage(builder, "Sending packet up to TC for cloning");
+    builder->target->emitTraceMessage(builder, "Sending packet up to TC for cloning or to kernel");
     builder->emitIndent();
     builder->appendFormat("return %s", builder->target->forwardReturnCode());
     builder->endOfStatement(true);

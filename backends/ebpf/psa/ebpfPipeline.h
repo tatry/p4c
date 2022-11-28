@@ -188,6 +188,8 @@ class EBPFEgressPipeline : public EBPFPipeline {
     void emitPSAControlInputMetadata(CodeBuilder* builder) override;
     void emitPSAControlOutputMetadata(CodeBuilder* builder) override;
     void emitCPUMAPLookup(CodeBuilder* builder) override;
+
+    virtual void emitCheckPacketMarkMetadata(CodeBuilder* builder) = 0;
 };
 
 class TCIngressPipeline : public EBPFIngressPipeline {
@@ -212,6 +214,7 @@ class TCEgressPipeline : public EBPFEgressPipeline {
         : EBPFEgressPipeline(name, options, refMap, typeMap) {}
 
     void emitTrafficManager(CodeBuilder* builder) override;
+    void emitCheckPacketMarkMetadata(CodeBuilder* builder) override;
 };
 
 class XDPIngressPipeline : public EBPFIngressPipeline {
@@ -245,6 +248,7 @@ class XDPEgressPipeline : public EBPFEgressPipeline {
 
     void emitGlobalMetadataInitializer(CodeBuilder* builder) override;
     void emitTrafficManager(CodeBuilder* builder) override;
+    void emitCheckPacketMarkMetadata(CodeBuilder* builder) override;
 };
 
 class TCTrafficManagerForXDP : public TCIngressPipeline {
@@ -253,6 +257,7 @@ class TCTrafficManagerForXDP : public TCIngressPipeline {
                            P4::TypeMap* typeMap)
         : TCIngressPipeline(name, options, refMap, typeMap) {}
 
+    void emitGlobalMetadataInitializer(CodeBuilder* builder) override;
     void emit(CodeBuilder* builder) override;
 
  private:

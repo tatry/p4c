@@ -403,12 +403,7 @@ void EBPFEgressPipeline::emit(CodeBuilder* builder) {
     builder->blockStart();
 
     emitGlobalMetadataInitializer(builder);
-    builder->appendFormat("if (compiler_meta__->mark != %u) ", packetMark);
-    builder->blockStart();
-    builder->emitIndent();
-    builder->append("return TC_ACT_OK");
-    builder->endOfStatement(true);
-    builder->blockEnd(true);
+    emitCheckPacketMarkMetadata(builder);
 
     emitLocalVariables(builder);
     emitUserMetadataInstance(builder);
@@ -583,12 +578,12 @@ void TCIngressPipeline::emitTrafficManager(CodeBuilder* builder) {
                           control->outputStandardMetadata->name.name);
     builder->newline();
 
+    builder->emitIndent();
     builder->appendFormat("if (!%s.drop && %s.egress_port == 0) ",
                           control->outputStandardMetadata->name.name,
                           control->outputStandardMetadata->name.name);
     builder->blockStart();
     builder->target->emitTraceMessage(builder, "IngressTM: Sending packet up to the kernel stack");
-    builder->emitIndent();
 
     // Since XDP helper re-writes EtherType for packets other than IPv4 (e.g., ARP)
     // we cannot simply return TC_ACT_OK to pass the packet up to the kernel stack,
@@ -597,9 +592,9 @@ void TCIngressPipeline::emitTrafficManager(CodeBuilder* builder) {
     // the packet will be re-written back to the original format.
     // At the beginning of the pipeline we check if pass_to_kernel is true and,
     // if so, the program returns TC_ACT_OK.
-    builder->newline();
-    builder->append("compiler_meta__->pass_to_kernel = true;");
-    builder->newline();
+    builder->emitIndent();
+    builder->appendLine("compiler_meta__->pass_to_kernel = true;");
+    builder->emitIndent();
     builder->append("return bpf_redirect(skb->ifindex, BPF_F_INGRESS)");
     builder->endOfStatement(true);
     builder->blockEnd(true);
@@ -678,6 +673,16 @@ void TCEgressPipeline::emitTrafficManager(CodeBuilder* builder) {
     builder->endOfStatement(true);
 }
 
+void TCEgressPipeline::emitCheckPacketMarkMetadata(CodeBuilder* builder) {
+    builder->emitIndent();
+    builder->appendFormat("if (compiler_meta__->mark != %u) ", packetMark);
+    builder->blockStart();
+    builder->emitIndent();
+    builder->appendFormat("return %s", forwardReturnCode());
+    builder->endOfStatement(true);
+    builder->blockEnd(true);
+}
+
 // =====================XDPIngressPipeline=============================
 void XDPIngressPipeline::emitGlobalMetadataInitializer(CodeBuilder* builder) {
     builder->emitIndent();
@@ -693,6 +698,10 @@ void XDPIngressPipeline::emitGlobalMetadataInitializer(CodeBuilder* builder) {
 
 void XDPIngressPipeline::emitTrafficManager(CodeBuilder* builder) {
     // do not handle multicast; it has been handled earlier by PreDeparser.
+    cstring portVar =
+        Util::printf_format("%s.egress_port", control->outputStandardMetadata->name.name);
+    builder->target->emitTraceMessage(builder, "IngressTM: Sending packet out of port %u", 1,
+                                      portVar);
     builder->emitIndent();
     builder->appendFormat("return bpf_redirect_map(&tx_port, %s.egress_port%s, 0);",
                           control->outputStandardMetadata->name.name, "%DEVMAP_SIZE");
@@ -736,7 +745,29 @@ void XDPEgressPipeline::emitTrafficManager(CodeBuilder* builder) {
     builder->newline();
 }
 
+void XDPEgressPipeline::emitCheckPacketMarkMetadata(CodeBuilder* builder) {
+    (void)builder;
+    // Global metadata in XDP is not preserved across ingress and egress so do not check packet
+    // mark. Anyway, in XDP egress can't be called without our ingress.
+}
+
 // =====================TCTrafficManagerForXDP=============================
+
+void TCTrafficManagerForXDP::emitGlobalMetadataInitializer(CodeBuilder* builder) {
+    EBPFPipeline::emitGlobalMetadataInitializer(builder);
+
+    // if Traffic Manager decided to pass packet to the kernel stack earlier, send it up immediately
+    builder->emitIndent();
+    builder->appendFormat("if (%s->pass_to_kernel == true) return %s;", compilerGlobalMetadata,
+                          progTarget->forwardReturnCode());
+    builder->newline();
+
+    // Mark packet for egress processing
+    builder->emitIndent();
+    builder->appendFormat("%s->mark = %u", compilerGlobalMetadata, packetMark);
+    builder->endOfStatement(true);
+}
+
 void TCTrafficManagerForXDP::emit(CodeBuilder* builder) {
     cstring msgStr;
     progTarget->emitCodeSection(builder, sectionName);
@@ -744,7 +775,7 @@ void TCTrafficManagerForXDP::emit(CodeBuilder* builder) {
     progTarget->emitMain(builder, functionName, model.CPacketName.str());
     builder->spc();
     builder->blockStart();
-    builder->emitIndent();
+    emitGlobalMetadataInitializer(builder);
     emitLocalVariables(builder);
 
     if (options.xdp2tcMode == XDP2TC_CPUMAP) {
