@@ -666,13 +666,15 @@ class LPMTableCachePSATest(P4EbpfTest):
         testutils.send_packet(self, PORT0, pkt)
         testutils.verify_packet(self, exp_pkt, PORT1)
 
-        # modify cache directly - verify that it is used (modify to NoAction)
+        # Validate that cache entry is used during packet processing. By altering cache we get two different states
+        # of a table entry with different executed actions. Based on this it is possible to detect which entry is in
+        # use, table entry or cached entry. If we only read cache here then we couldn't test that it is used correctly.
         self.table_update(table="ingress_tbl_lpm_cache",
                           key=["32w0x60", "32w0", "64w0x5044332211000000"], action=0, data=["160w0"])
         testutils.send_packet(self, PORT0, pkt)
         testutils.verify_packet(self, pkt, PORT1)
 
-        # update table - verify clearing cache
+        # Update table entry to test if NIKSS library invalidates cache
         self.table_update(table="ingress_tbl_lpm", key=["00:11:22:33:44:55"], action=1, data=["11:22:33:44:55:66"])
         testutils.send_packet(self, PORT0, pkt)
         testutils.verify_packet(self, exp_pkt, PORT1)
@@ -691,7 +693,9 @@ class TernaryTableCachePSATest(P4EbpfTest):
         testutils.send_packet(self, PORT0, pkt)
         testutils.verify_packet(self, exp_pkt, PORT1)
 
-        # modify cache directly - verify that it is used (make action default)
+        # Validate that cache entry is used during packet processing. By altering cache we get two different states
+        # of a table entry with different executed actions. Based on this it is possible to detect which entry is in
+        # use, table entry or cached entry. If we only read cache here then we couldn't test that it is used correctly.
         self.table_update(table="ingress_tbl_ternary_cache",
                           key=["00:11:22:33:44:55"],
                           action=1, data=["32w0", "11:22:33:44:55:66", "16w0", "64w0"])
@@ -699,7 +703,7 @@ class TernaryTableCachePSATest(P4EbpfTest):
         exp_pkt[Ether].type = 0x0800
         testutils.verify_packet(self, exp_pkt, PORT1)
 
-        # delete table entry - verify clearing cache
+        # Delete table entry to test if NIKSS library invalidates cache
         self.table_delete(table="ingress_tbl_ternary", key=["00:11:22:33:44:55"])
         testutils.send_packet(self, PORT0, pkt)
         testutils.verify_packet(self, pkt, PORT1)
