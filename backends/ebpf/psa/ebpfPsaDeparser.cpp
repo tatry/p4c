@@ -198,12 +198,15 @@ void TCIngressDeparserForTrafficManagerPSA::emitPreDeparser(CodeBuilder* builder
 // =====================XDPIngressDeparserPSA=============================
 void XDPIngressDeparserPSA::emitPreDeparser(CodeBuilder* builder) {
     builder->emitIndent();
-    // perform early multicast detection; if multicast is invoked, a packet will be
-    // passed up anyway, so we can do deparsing entirely in TC
-    // In the NTK path follow any replication path
-    builder->appendFormat(
-        "if (%s->clone || %s->multicast_group != 0 || (!%s->drop && %s->egress_port == 0)) ",
-        istd->name.name, istd->name.name, istd->name.name, istd->name.name);
+    // Perform early multicast detection; if multicast is invoked, a packet will be
+    // passed up anyway, so we can do deparsing entirely in TC.
+    // In the NTK path follow any replication path, but it has to be checked if packet is not
+    // resubmitted or multicasted because this check is not at the end of deparser.
+    cstring conditionSendToTC =
+        "if (%s->clone || %s->multicast_group != 0 ||"
+        " (!%s->drop && %s->egress_port == 0 && !%s->resubmit && %s->multicast_group == 0)) ";
+    conditionSendToTC = conditionSendToTC.replace("%s", istd->name.name);
+    builder->append(conditionSendToTC);
     builder->blockStart();
     builder->emitIndent();
     builder->appendLine("struct xdp2tc_metadata xdp2tc_md = {};");
@@ -217,7 +220,6 @@ void XDPIngressDeparserPSA::emitPreDeparser(CodeBuilder* builder) {
     builder->emitIndent();
     builder->appendFormat("xdp2tc_md.packetOffsetInBits = %s", this->program->offsetVar);
     builder->endOfStatement(true);
-    builder->emitIndent();
     builder->append(
         "    void *data = (void *)(long)skb->data;\n"
         "    void *data_end = (void *)(long)skb->data_end;\n"
