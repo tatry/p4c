@@ -537,7 +537,9 @@ void PSAArchXDP::emit(CodeBuilder* builder) const {
 
     ingress->emit(builder);
 
-    egress->emit(builder);
+    if (!egress->isEmpty()) {
+        egress->emit(builder);
+    }
 
     builder->newline();
 
@@ -547,7 +549,9 @@ void PSAArchXDP::emit(CodeBuilder* builder) const {
     tcIngressForXDP->emit(builder);
     builder->newline();
 
-    tcEgressForXDP->emit(builder);
+    if (!tcEgressForXDP->isEmpty()) {
+        tcEgressForXDP->emit(builder);
+    }
 
     builder->target->emitLicense(builder, ingress->license);
 }
