@@ -236,8 +236,10 @@ bool StateTranslationVisitor::preorder(const IR::SelectCase *selectCase) {
         } else {
             unsigned bytes = ROUNDUP(width, 8);
             bool first = true;
-            cstring hex = EBPFInitializerUtils::genHexStr(mask->right->to<IR::Constant>()->value, width, mask->right);
-            cstring value = EBPFInitializerUtils::genHexStr(mask->left->to<IR::Constant>()->value, width, mask->left);
+            cstring hex = EBPFInitializerUtils::genHexStr(mask->right->to<IR::Constant>()->value,
+                                                          width, mask->right);
+            cstring value = EBPFInitializerUtils::genHexStr(mask->left->to<IR::Constant>()->value,
+                                                            width, mask->left);
             builder->append("if (");
             for (unsigned i = 0; i < bytes; ++i) {
                 if (!first) {
