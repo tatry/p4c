@@ -463,7 +463,8 @@ unsigned EBPFInitializerUtils::ebpfTypeWidth(P4::TypeMap *typeMap, const IR::Exp
     if (type == nullptr) type = expr->type;
     if (type->is<IR::Type_InfInt>()) return 32;  // let's assume 32 bit for int type
     if (type->is<IR::Type_Set>()) type = type->to<IR::Type_Set>()->elementType;
-    // TODO: fix this when select expression from parser supports more than one field
+    // FIXME: When select expression from parser supports more than one field then only the first
+    //        component will taken into account.
     if (type->is<IR::Type_List>()) type = type->to<IR::Type_List>()->components.front();
 
     auto ebpfType = EBPFTypeFactory::instance->create(type);
