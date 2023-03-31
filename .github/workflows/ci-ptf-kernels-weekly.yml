@@ -26,7 +26,7 @@ on:
 jobs:
   ptf-linux:
     # Prevent triggering by a fork because this workflow is resource intensive
-    if: ${{ github.repository == 'p4lang/p4c' && github.ref == 'refs/heads/main' }}
+    # if: ${{ github.repository == 'p4lang/p4c' && github.ref == 'refs/heads/main' }}
     strategy:
       fail-fast: false
       matrix:
