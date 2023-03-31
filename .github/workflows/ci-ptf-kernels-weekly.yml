@@ -18,6 +18,10 @@ on:
   schedule:
     # Every sunday at 1:17 am UTC
     - cron: '17 1 * * 0'
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   ptf-linux:
@@ -38,7 +42,7 @@ jobs:
             kernel_version: 5.13.0-52
             os: ubuntu-20.04
           - kernels: 5.15
-            kernel_version: 5.15.0-48
+            kernel_version: 5.15.0-69
             os: ubuntu-20.04
     env:
       # Used by virt-builder and virt-install, for valid values see `virt-builder --list`.

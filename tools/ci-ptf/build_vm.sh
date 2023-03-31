@@ -17,7 +17,10 @@
 # Script to build virtual machine disk image.
 
 USER_NAME="ubuntu"
-USER_PASS=$(mkpasswd ubuntu)
+# Password: ubuntu
+# Newer version of mkpasswd from Ubuntu 22.04 generates string that is not correctly understand by
+# Ubuntu 20.04, so hardcode password hash
+USER_PASS="Q7KzRGQd70ZS6"
 USER_HOME=$(pwd)
 
 function create_kernel_packages_str() {
