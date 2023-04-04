@@ -62,7 +62,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       OS_TYPE: ubuntu-20.04
-      KERNEL_VERSIONS: ${{ env.UBUNTU_2004_KERNELS }}
     steps:
       - uses: actions/checkout@v3
 
@@ -79,7 +78,7 @@ jobs:
         if: steps.vm_cache.outputs.cache-hit != 'true'
         run: |
           sudo -E ./tools/ci-ptf/prepare_runner.sh
-          sudo -E ./tools/ci-ptf/build_vm.sh
+          sudo -E ./tools/ci-ptf/build_vm.sh ${{ env.UBUNTU_2004_KERNELS }}
 
   ptf-ubuntu-2004:
     needs: [build-ubuntu-2004, build-p4c]

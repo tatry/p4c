@@ -34,8 +34,8 @@ function create_kernel_packages_str() {
 	done
 }
 
-# $KERNEL_VERSIONS must be passed without quotes to allow split into separate arguments
-create_kernel_packages_str $KERNEL_VERSIONS
+# $@ (list of kernels versions) must be passed without quotes to allow split into separate arguments
+create_kernel_packages_str $@
 
 # Note: Image with Ubuntu 20.04 is preinstalled on logical volume which virt-builder is unable to resize
 virt-builder "$OS_TYPE" \
