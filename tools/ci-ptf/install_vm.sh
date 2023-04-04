@@ -36,5 +36,5 @@ guestunmount /mnt/inner
 cp "$DISK_IMAGE" "$WORKING_DISK_IMAGE"
 
 # Move docker test image into VM, require to boot VM
-./tools/ci-ptf/run_test.sh "$KERNEL_VERSION" docker load -i "$P4C_IMAGE"
+./tools/ci-ptf/run_test.sh docker load -i "$P4C_IMAGE"
 rm -f "$P4C_IMAGE"
