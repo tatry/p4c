@@ -28,19 +28,13 @@ virt-format --format=qcow2 --filesystem=ext4 -a "$DOCKER_VOLUME_IMAGE"
 # Copy boot images for every kernel
 mkdir -p /mnt/inner /tmp/vm
 guestmount -a "$DISK_IMAGE" -i --ro /mnt/inner/
-for version in $KERNEL_VERSIONS; do
-  cp "/mnt/inner/boot/initrd.img-$version-generic" /tmp/vm/
-  cp "/mnt/inner/boot/vmlinuz-$version-generic" /tmp/vm/
-done
+cp "/mnt/inner/boot/initrd.img-$KERNEL_VERSION-generic" /tmp/vm/
+cp "/mnt/inner/boot/vmlinuz-$KERNEL_VERSION-generic" /tmp/vm/
 guestunmount /mnt/inner
 
 # Make working copy of disk image
 cp "$DISK_IMAGE" "$WORKING_DISK_IMAGE"
 
-# Move docker test image into VM, require to boot VM with *any* kernel version
-docker save -o p4c.img p4c
-chmod +r p4c.img
-docker rmi -f p4c
-ANY_KERNEL_VERSION="$(echo "$KERNEL_VERSIONS" | awk '{print $1}')"
-./tools/ci-ptf/run_test.sh "$ANY_KERNEL_VERSION" docker load -i p4c.img
-rm -f p4c.img
+# Move docker test image into VM, require to boot VM
+./tools/ci-ptf/run_test.sh "$KERNEL_VERSION" docker load -i "$P4C_IMAGE"
+rm -f "$P4C_IMAGE"

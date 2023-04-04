@@ -29,9 +29,6 @@ esac
 
 IP="192.168.122.2"
 
-KERNEL_VERSION="$1"
-shift
-
 rm ~/.ssh/known_hosts
 
 set -e
