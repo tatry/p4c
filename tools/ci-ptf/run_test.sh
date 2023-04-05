@@ -70,9 +70,11 @@ virt-install --import \
     --filesystem "$(pwd)",runner \
     --boot kernel=/tmp/vm/vmlinuz-$KERNEL_VERSION-generic,initrd=/tmp/vm/initrd.img-$KERNEL_VERSION-generic,kernel_args="ro console=tty0 console=ttyS0,115200n8 root=/dev/vda5"
 
-wait-for-it "$IP:22" -t 300 -s -- echo VM ready
-# Wait some time to allow guest to fully boot (due to pam_nologin it might be impossible to login to early)
-sleep 30
+wait-for-it "$IP:22" -t 300 -s -- echo "VM (almost) ready"
+# Wait some time to allow guest to fully boot (due to pam_nologin
+# and dpkg-reconfigure openssh-server it might be impossible to login to early)
+echo "Waiting for guest to fully boot"
+sleep 90
 sshpass -p ubuntu ssh -o "StrictHostKeyChecking=no" "ubuntu@$IP" uname -a
 
 # Move docker test image into VM
