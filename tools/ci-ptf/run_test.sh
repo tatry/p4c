@@ -52,7 +52,7 @@ cp "/mnt/inner/boot/initrd.img-$KERNEL_VERSION-generic" /tmp/vm/
 cp "/mnt/inner/boot/vmlinuz-$KERNEL_VERSION-generic" /tmp/vm/
 guestunmount /mnt/inner
 
-# Make working copy of disk image
+# Move disk image to the correct location
 mv "$DISK_IMAGE" "$WORKING_DISK_IMAGE"
 
 virt-install --import \
@@ -78,6 +78,7 @@ sleep 90
 sshpass -p ubuntu ssh -o "StrictHostKeyChecking=no" "ubuntu@$IP" uname -a
 
 # Move docker test image into VM
+echo "Loading P4C docker image into VM"
 sshpass -p ubuntu ssh "ubuntu@$IP" docker load -i "$P4C_IMAGE"
 rm -f "$P4C_IMAGE"
 

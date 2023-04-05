@@ -34,7 +34,7 @@ env:
 jobs:
   build-p4c:
     # Prevent triggering by a fork because this workflow is resource intensive
-    # if: ${{ github.repository == 'p4lang/p4c' && github.ref == 'refs/heads/main' }}
+    if: ${{ github.repository == 'p4lang/p4c' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -58,7 +58,7 @@ jobs:
 
   build-ubuntu-2004:
     # Prevent triggering by a fork because this workflow is resource intensive
-    # if: ${{ github.repository == 'p4lang/p4c' && github.ref == 'refs/heads/main' }}
+    if: ${{ github.repository == 'p4lang/p4c' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     env:
       OS_TYPE: ubuntu-20.04
