@@ -20,6 +20,7 @@ USER_NAME="ubuntu"
 # Password: ubuntu
 # Newer version of mkpasswd from Ubuntu 22.04 generates string that is not correctly understand by
 # Ubuntu 20.04, so hardcode password hash
+# TODO: use option `--password` from virt-builder command instead, e.g. `--password ubuntu:password:ubuntu`
 USER_PASS="Q7KzRGQd70ZS6"
 USER_HOME=$(pwd)
 
